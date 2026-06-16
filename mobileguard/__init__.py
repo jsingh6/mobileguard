@@ -24,7 +24,7 @@ All analysis is performed locally. The only outbound network calls are to
 the Anthropic API when --llm is passed to `scan` or when running `contract`.
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __author__ = "Jaspreet Singh"
 __license__ = "Apache-2.0"
 
