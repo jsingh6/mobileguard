@@ -1,0 +1,105 @@
+# Copyright 2026 Jaspreet Singh
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mobileguard"
+version = "1.0.0"
+description = "AI governance for consumer mobile platforms — prevents App Store and Google Play rejections caused by AI-generated code"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+authors = [{ name = "Jaspreet Singh", email = "jaspreet.sjsu@gmail.com" }]
+keywords = [
+    "mobile",
+    "governance",
+    "ai",
+    "app-store",
+    "google-play",
+    "swift",
+    "kotlin",
+    "flutter",
+    "react-native",
+    "eu-ai-act",
+    "owasp",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Security",
+]
+dependencies = [
+    "anthropic>=0.40.0",
+    "click>=8.1.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0.0",
+    "pathspec>=0.12.0",
+    "tomli>=2.0.0",
+]
+
+[project.scripts]
+mobileguard = "mobileguard.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/jsingh6/mobileguard"
+Paper = "https://arxiv.org/abs/XXXX.XXXXX"
+Documentation = "https://github.com/jsingh6/mobileguard#readme"
+"Bug Tracker" = "https://github.com/jsingh6/mobileguard/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "bandit>=1.7.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mobileguard*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=mobileguard --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = ["mobileguard/llm.py"]  # requires live Anthropic API key
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "PTH"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "examples"]
+skips = ["B101"]

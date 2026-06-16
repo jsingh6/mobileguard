@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use MobileGuard in research, please cite:"
+type: software
+title: "MobileGuard: A Stack-Agnostic Governance Framework for Agentic AI Across Consumer Mobile Delivery Platforms"
+authors:
+  - family-names: Singh
+    given-names: Jaspreet
+    email: jaspreet.sjsu@gmail.com
+date-released: 2026
+url: "https://github.com/jsingh6/mobileguard"
+repository-code: "https://github.com/jsingh6/mobileguard"
+license: Apache-2.0
+version: "1.0.0"
+abstract: >-
+  MobileGuard is a Python CLI tool and reference implementation of the
+  MobileGuard governance framework for agentic AI on consumer mobile platforms.
+  It prevents App Store and Google Play rejections caused by AI-generated code
+  by enforcing four governance pillars: PDQC, TAC-M, PGSG, and AABE.
+keywords:
+  - mobile governance
+  - agentic AI
+  - App Store
+  - Google Play
+  - EU AI Act
+  - OWASP Mobile
+  - Swift
+  - Kotlin
+  - Flutter
+  - React Native
+references:
+  - type: article
+    title: "MobileGuard: A Stack-Agnostic Governance Framework for Agentic AI Across Consumer Mobile Delivery Platforms"
+    authors:
+      - family-names: Singh
+        given-names: Jaspreet
+    year: 2026
+    url: "https://arxiv.org/abs/XXXX.XXXXX"

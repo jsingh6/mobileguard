@@ -1,0 +1,39 @@
+name: MobileGuard Self-Governance Scan
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  self-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install MobileGuard (self)
+        run: pip install -e .
+
+      - name: Self-governance scan (OWASP rules on own source)
+        run: |
+          mobileguard scan ./mobileguard \
+            --rules owasp \
+            --severity warning \
+            --format sarif \
+            --output self-scan.sarif \
+            --fail-on critical
+
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: self-scan.sarif
+          category: mobileguard-self
