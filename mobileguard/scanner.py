@@ -34,6 +34,7 @@ _SKIP_DIRS = {
     "DerivedData",
     "Packages",
     ".git",
+    ".github",
     ".mobileguard",
     "build",
     "dist",

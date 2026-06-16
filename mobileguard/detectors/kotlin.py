@@ -89,6 +89,9 @@ def detect(file_path: str, content: str) -> list[Finding]:
     has_disclosure = bool(_DISCLOSURE_UI.search(content))
     has_log = bool(_LOG_CALL.search(content))
     has_rate_limit = bool(_RATE_LIMIT.search(content))
+    ai_call_line_nums = {
+        i for i, ln in enumerate(lines, start=1) if _AI_DOMAIN.search(ln)
+    }
 
     reported_gp001 = False
     reported_eu001 = False
@@ -231,7 +234,9 @@ def detect(file_path: str, content: str) -> list[Finding]:
             )
 
         # OW-003: PII variable used in file that calls AI API
-        if has_ai_call and _PII_VARS.search(line):
+        if _PII_VARS.search(line) and any(
+            abs(i - ai_ln) <= 30 for ai_ln in ai_call_line_nums
+        ):
             rule = OWASP_RULES["OW-003"]
             findings.append(
                 Finding(
