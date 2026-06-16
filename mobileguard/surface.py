@@ -117,7 +117,7 @@ class SurfaceScanResult(BaseModel):
             counts[e.risk_level.lower()] = counts.get(e.risk_level.lower(), 0) + 1
         return counts
 
-    def model_dump_json(self, **kwargs: Any) -> str:  # type: ignore[override]
+    def model_dump_json(self, **kwargs: Any) -> str:
         data = self.model_dump()
         data["scanned_at"] = self.scanned_at.isoformat()
         data["summary"] = self.summary
