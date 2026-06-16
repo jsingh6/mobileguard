@@ -16,7 +16,6 @@ and OWASP (OW-xxx) rule categories.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from mobileguard.models import Finding
 from mobileguard.rules import EU_AI_ACT_RULES, GOOGLE_PLAY_RULES, OWASP_RULES

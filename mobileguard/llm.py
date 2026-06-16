@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import UTC
 from typing import Any
 
 import anthropic
@@ -135,7 +136,7 @@ def evaluate_contract(
     exponential backoff. Returns a ContractVerdict on success or raises
     on unrecoverable error.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     client = anthropic.Anthropic(api_key=api_key)
     prompt = _CONTRACT_PROMPT.format(
@@ -213,5 +214,5 @@ def evaluate_contract(
         halt_pipeline=halt,
         human_override_required=bool(data.get("human_override_required", halt)),
         recommendation=data.get("recommendation", "Review findings before proceeding."),
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )

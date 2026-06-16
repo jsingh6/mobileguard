@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from mobileguard.models import Finding, RuleCategory, Severity
+from mobileguard.models import Finding
 from mobileguard.rules import APP_STORE_RULES, EU_AI_ACT_RULES, OWASP_RULES
 
 # ── Compiled patterns ──────────────────────────────────────────────────────────

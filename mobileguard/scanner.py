@@ -17,13 +17,13 @@ from __future__ import annotations
 
 import time
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pathspec
 
 from mobileguard.detectors import detect_dart, detect_javascript, detect_kotlin, detect_swift
-from mobileguard.models import Finding, Platform, RuleCategory, Severity, ScanResult
+from mobileguard.models import Finding, Platform, RuleCategory, ScanResult, Severity
 
 # ── Skip lists ────────────────────────────────────────────────────────────────
 
