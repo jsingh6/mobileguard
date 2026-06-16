@@ -15,7 +15,7 @@ using the Claude API. Results are appended to an append-only JSONL audit log.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -82,8 +82,10 @@ def evaluate(
         # Concatenate all source files up to 12 000 chars
         parts = []
         for f in sorted(target.rglob("*")):
-            if f.is_file() and f.suffix.lower() in {".swift", ".kt", ".dart", ".ts", ".js", ".tsx", ".jsx"}:
-                parts.append(f"// --- {f.name} ---\n{f.read_text(encoding='utf-8', errors='replace')}")
+            exts = {".swift", ".kt", ".dart", ".ts", ".js", ".tsx", ".jsx"}
+            if f.is_file() and f.suffix.lower() in exts:
+                content = f.read_text(encoding="utf-8", errors="replace")
+                parts.append(f"// --- {f.name} ---\n{content}")
                 if sum(len(p) for p in parts) > 12_000:
                     break
         code = "\n\n".join(parts)
@@ -114,7 +116,7 @@ def _append_audit_log(verdict: ContractVerdict) -> None:
     audit_dir = Path(_AUDIT_DIR)
     audit_dir.mkdir(parents=True, exist_ok=True)
 
-    today = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     log_file = audit_dir / f"mobileguard-{today}.jsonl"
 
     entry = verdict.model_dump(mode="json")

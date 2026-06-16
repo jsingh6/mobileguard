@@ -45,7 +45,9 @@ RULES: dict[str, RuleDefinition] = {
         id="GP-003",
         severity=Severity.ERROR,
         category=RuleCategory.GOOGLE_PLAY,
-        description="AppFunction declaration exposes sensitive permissions without MANAGE_APP_FUNCTIONS",
+        description=(
+            "AppFunction declaration exposes sensitive permissions without MANAGE_APP_FUNCTIONS"
+        ),
         fix=(
             "Declare android.permission.MANAGE_APP_FUNCTIONS in AndroidManifest.xml and "
             "add runtime permission checks before your AppFunction accesses sensitive data. "

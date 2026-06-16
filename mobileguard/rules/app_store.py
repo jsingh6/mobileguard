@@ -58,7 +58,9 @@ RULES: dict[str, RuleDefinition] = {
         id="AS-004",
         severity=Severity.WARNING,
         category=RuleCategory.APP_STORE,
-        description="Generic AI-generated privacy description in Info.plist may trigger App Store review",
+        description=(
+            "Generic AI-generated privacy description in Info.plist may trigger App Store review"
+        ),
         fix=(
             "Replace boilerplate privacy descriptions with specific, accurate descriptions "
             "of how your app uses the requested resource. Generic descriptions like 'improve "
@@ -71,7 +73,9 @@ RULES: dict[str, RuleDefinition] = {
         id="AS-005",
         severity=Severity.WARNING,
         category=RuleCategory.APP_STORE,
-        description="Missing NSPrivacyCollectedDataTypes declaration for AI feature that collects user data",
+        description=(
+            "Missing NSPrivacyCollectedDataTypes declaration for AI feature that collects user data"
+        ),
         fix=(
             "Add a PrivacyInfo.xcprivacy file declaring all data types collected by your "
             "AI integration. Required for apps targeting iOS 17+ that use third-party AI APIs."

@@ -20,7 +20,9 @@ RULES: dict[str, RuleDefinition] = {
         id="OW-001",
         severity=Severity.CRITICAL,
         category=RuleCategory.OWASP,
-        description="Prompt injection risk — user input interpolated directly into AI system prompt",
+        description=(
+            "Prompt injection risk — user input interpolated directly into AI system prompt"
+        ),
         fix=(
             "Never interpolate user-controlled input directly into a system prompt or AI "
             "instruction string. Sanitize user input by removing control characters and "
@@ -34,7 +36,9 @@ RULES: dict[str, RuleDefinition] = {
         id="OW-002",
         severity=Severity.ERROR,
         category=RuleCategory.OWASP,
-        description="AI model output rendered in WebView without HTML sanitization (XSS via AI output)",
+        description=(
+            "AI model output rendered in WebView without HTML sanitization (XSS via AI output)"
+        ),
         fix=(
             "Never render raw AI API response text directly in a WKWebView or WebView. "
             "Either sanitize the HTML (strip script tags, inline event handlers, "

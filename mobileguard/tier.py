@@ -16,7 +16,7 @@ earned based on consecutive clean deployment cycles.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -112,10 +112,13 @@ def compute_tier(agent_id: str, audit_dir: str = _DEFAULT_AUDIT_DIR) -> TierResu
             ]
             if criticals:
                 demotion_triggered = True
-                demotion_reason = f"Critical finding in most recent cycle: {criticals[0].get('rule_id', 'unknown')}"
+                rule = criticals[0].get("rule_id", "unknown")
+                demotion_reason = f"Critical finding in most recent cycle: {rule}"
             elif score < _DEMOTION_CRITICAL_SCORE:
                 demotion_triggered = True
-                demotion_reason = f"Score {score:.2f} below critical threshold {_DEMOTION_CRITICAL_SCORE}"
+                demotion_reason = (
+                    f"Score {score:.2f} below critical threshold {_DEMOTION_CRITICAL_SCORE}"
+                )
 
         if outcome == "FAIL":
             break
@@ -225,7 +228,7 @@ def format_history_table(agent_id: str, audit_dir: str, limit: int = 5) -> list[
                 "outcome": outcome,
                 "score": f"{score:.2f}",
                 "note": (
-                    f"Contract violation — reset clean cycle count"
+                    "Contract violation — reset clean cycle count"
                     if outcome == "FAIL"
                     else ""
                 ),

@@ -34,8 +34,8 @@ from mobileguard.models import (
     Finding,
     Platform,
     RuleCategory,
-    Severity,
     ScanResult,
+    Severity,
     TierResult,
 )
 

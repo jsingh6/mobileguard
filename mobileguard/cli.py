@@ -19,7 +19,6 @@ Exit codes:
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -28,11 +27,9 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
-from rich.text import Text
 
 from mobileguard import __version__
-from mobileguard.models import Finding, Platform, Severity, ScanResult
+from mobileguard.models import Finding, ScanResult, Severity
 
 console = Console()
 err_console = Console(stderr=True)
@@ -168,7 +165,7 @@ def scan(
         sys.exit(2)
 
     from mobileguard.models import Severity as Sev
-    from mobileguard.scanner import run_scan, findings_meet_fail_threshold
+    from mobileguard.scanner import findings_meet_fail_threshold, run_scan
 
     min_sev = Sev(severity)
     scanned_files: list[str] = []
@@ -287,7 +284,9 @@ def _print_table_result(result: ScanResult, path: str) -> None:
         console.print("[bold green]Status: PASS[/bold green]")
     else:
         console.print("[bold red]Status: FAIL (violations found)[/bold red]")
-        console.print("Run [cyan]mobileguard audit[/cyan] to generate an EU AI Act compliance report.")
+        console.print(
+            "Run [cyan]mobileguard audit[/cyan] to generate an EU AI Act compliance report."
+        )
 
     console.print()
 
@@ -696,10 +695,9 @@ def tier(agent_id: str, audit_dir: str, contract_path: str | None, cfsr: float |
       mobileguard tier my-agent-01
       mobileguard tier claude-code --history ./audit-logs --cfsr 0.997
     """
-    from mobileguard.tier import TIER_DEFINITIONS, compute_tier, format_history_table
+    from mobileguard.tier import compute_tier, format_history_table
 
     result = compute_tier(agent_id, audit_dir)
-    tier_def = TIER_DEFINITIONS.get(result.current_tier, {})
 
     console.print()
     console.print(
@@ -815,12 +813,13 @@ def init(platform: str, bundle_id: str | None, app_name: str | None, strict: boo
         contract["bundle_id"] = bundle_id
 
     out_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
-    console.print(f"[green]Created:[/green] mobileguard.json")
+    console.print("[green]Created:[/green] mobileguard.json")
     console.print(
         f"  Platform: {platform} · "
         f"Strict mode: {'on' if strict else 'off'} · "
         f"Min score: {thresholds['min_score']}"
     )
     console.print(
-        "Run [cyan]mobileguard contract <path> --agent <agent-id>[/cyan] to evaluate AI-generated code."
+        "Run [cyan]mobileguard contract <path> --agent <agent-id>[/cyan]"
+        " to evaluate AI-generated code."
     )

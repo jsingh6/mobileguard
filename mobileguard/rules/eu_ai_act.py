@@ -34,7 +34,10 @@ RULES: dict[str, RuleDefinition] = {
         id="EU-002",
         severity=Severity.ERROR,
         category=RuleCategory.EU_AI_ACT,
-        description="Automated AI decision modifies user data without human oversight mechanism (Article 14)",
+        description=(
+            "Automated AI decision modifies user data "
+            "without human oversight mechanism (Article 14)"
+        ),
         fix=(
             "Add a confirmation step before AI-generated decisions take effect on financial, "
             "health, or identity data. Users must be able to review and reject automated "

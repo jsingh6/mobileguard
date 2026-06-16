@@ -11,13 +11,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Violation severity levels, ordered from most to least severe."""
 
     CRITICAL = "critical"
@@ -31,7 +31,7 @@ class Severity(str, Enum):
         return {"critical": 4, "error": 3, "warning": 2, "info": 1}[self.value]
 
 
-class Platform(str, Enum):
+class Platform(StrEnum):
     """Supported mobile platforms."""
 
     IOS = "ios"
@@ -40,7 +40,7 @@ class Platform(str, Enum):
     REACT_NATIVE = "react-native"
 
 
-class RuleCategory(str, Enum):
+class RuleCategory(StrEnum):
     """Governance rule category, corresponding to the applicable policy framework."""
 
     APP_STORE = "app-store"
@@ -57,11 +57,11 @@ class Finding(BaseModel):
     category: RuleCategory
     description: str = Field(description="Human-readable description of the violation")
     file_path: str = Field(description="Relative path to the file containing the violation")
-    line_number: Optional[int] = Field(default=None, description="1-based line number")
-    column: Optional[int] = Field(default=None, description="1-based column number")
-    evidence: Optional[str] = Field(default=None, description="Code snippet showing the violation")
+    line_number: int | None = Field(default=None, description="1-based line number")
+    column: int | None = Field(default=None, description="1-based column number")
+    evidence: str | None = Field(default=None, description="Code snippet showing the violation")
     fix: str = Field(description="Actionable remediation guidance")
-    reference: Optional[str] = Field(default=None, description="URL to the relevant guideline")
+    reference: str | None = Field(default=None, description="URL to the relevant guideline")
     pillar: str = Field(description="Governance pillar: PDQC | TACM | PGSG | AABE")
 
 
@@ -82,7 +82,9 @@ class ScanResult(BaseModel):
 class ContractVerdict(BaseModel):
     """Result of a `mobileguard contract` evaluation against a quality contract."""
 
-    stage: str = Field(description="Pipeline stage: code-generation | test-generation | code-review")
+    stage: str = Field(
+        description="Pipeline stage: code-generation | test-generation | code-review",
+    )
     agent_id: str = Field(description="Identifier of the AI agent that produced this code")
     platform: Platform
     score: float = Field(ge=0.0, le=1.0, description="Quality score between 0.0 and 1.0")
@@ -125,7 +127,7 @@ class TierResult(BaseModel):
     )
     consecutive_clean_cycles: int = Field(ge=0)
     demotion_triggered: bool
-    demotion_reason: Optional[str] = None
+    demotion_reason: str | None = None
     recommendation: str
 
 

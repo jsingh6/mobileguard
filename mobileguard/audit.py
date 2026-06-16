@@ -16,13 +16,12 @@ PDF export is planned for v1.1 — convert HTML output using your browser's prin
 
 from __future__ import annotations
 
-import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mobileguard import __version__
-from mobileguard.models import AuditReport, Finding, Platform, RuleCategory, Severity, ScanResult
+from mobileguard.models import AuditReport, Finding, Platform, RuleCategory, ScanResult, Severity
 
 _AI_DOMAIN_RE = re.compile(
     r"https?://(?:api\.openai\.com|api\.anthropic\.com|"
@@ -66,7 +65,7 @@ def generate_report(
     compliance_status = _build_compliance_status(scan_result.findings)
     attestation = (
         f"This report was generated automatically by MobileGuard v{__version__} "
-        f"on {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d')}. "
+        f"on {datetime.now(tz=UTC).strftime('%Y-%m-%d')}. "
         "It documents governance practices as detected in the codebase at the time of scan. "
         "This report does not constitute legal advice."
     )
@@ -79,7 +78,7 @@ def generate_report(
         app_name=app_name,
         version=version,
         platforms=platforms,
-        generated_at=datetime.now(tz=timezone.utc),
+        generated_at=datetime.now(tz=UTC),
         tool_version=__version__,
         compliance_status=compliance_status,
         ai_features=ai_features,
@@ -169,9 +168,6 @@ def render_markdown(report: AuditReport) -> str:
 
 def render_html(report: AuditReport) -> str:
     """Render an AuditReport as an HTML document."""
-    md = render_markdown(report)
-    # Simple conversion: escape HTML in markdown and wrap in styled page
-    escaped = md.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     rows = []
     for category, info in report.compliance_status.items():
         rows.append(
@@ -189,6 +185,14 @@ def render_html(report: AuditReport) -> str:
             f"<strong>{f.rule_id}</strong> [{f.severity.value.upper()}] {f.description}<br>"
             f"<small>File: {loc} · Fix: {f.fix}</small></div>\n"
         )
+
+    ai_list = (
+        "".join(
+            f"<li>{feat['name']} — <code>{feat['file']}</code></li>"
+            for feat in report.ai_features
+        )
+        or "<li>No AI integrations detected.</li>"
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -227,7 +231,7 @@ def render_html(report: AuditReport) -> str:
 
 <h2>AI Features Inventory</h2>
 <ul>
-{''.join(f"<li>{feat['name']} — <code>{feat['file']}</code></li>" for feat in report.ai_features) or '<li>No AI integrations detected.</li>'}
+{ai_list}
 </ul>
 
 <h2>Findings</h2>
