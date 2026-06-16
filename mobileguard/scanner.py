@@ -15,6 +15,7 @@ and aggregates findings into a ScanResult. Pattern-only by default; the
 
 from __future__ import annotations
 
+import re
 import time
 from collections import Counter
 from collections.abc import Callable
@@ -24,6 +25,8 @@ import pathspec
 
 from mobileguard.detectors import detect_dart, detect_javascript, detect_kotlin, detect_swift
 from mobileguard.models import Finding, Platform, RuleCategory, ScanResult, Severity
+from mobileguard.rules.code_execution import check_code_execution
+from mobileguard.rules.privacy_manifest import check_privacy_manifest
 
 # ── Skip lists ────────────────────────────────────────────────────────────────
 
@@ -113,6 +116,44 @@ def _should_skip(path: Path, root: Path, spec: pathspec.PathSpec | None) -> bool
     return False
 
 
+_PBXPROJ_SDKROOT = re.compile(r'\bSDKROOT\s*=\s*(\S+?)\s*;')
+
+_MACOS_WARNING = (
+    "Warning: This project appears to target macOS, not iOS. "
+    "MobileGuard iOS rules may not apply. "
+    "Run with --platform macos to suppress this warning."
+)
+
+
+def _check_xcodeproj_target(root: Path) -> str | None:
+    """Return a warning string if the project's xcodeproj targets macOS only.
+
+    Reads every project.pbxproj reachable from root (skipping _SKIP_DIRS).
+    Returns the warning if any pbxproj has SDKROOT = macosx with no iphoneos
+    counterpart, indicating a macOS-only deployment target.
+    """
+    for xcodeproj in root.rglob("*.xcodeproj"):
+        if any(part in _SKIP_DIRS for part in xcodeproj.parts):
+            continue
+        if not xcodeproj.is_dir():
+            continue
+        pbxproj = xcodeproj / "project.pbxproj"
+        if not pbxproj.exists():
+            continue
+        try:
+            text = pbxproj.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        sdkroots = {s.lower() for s in _PBXPROJ_SDKROOT.findall(text)}
+        if not sdkroots:
+            continue
+        has_macos = any("macosx" in s for s in sdkroots)
+        has_ios = any("iphoneos" in s for s in sdkroots)
+        if has_macos and not has_ios:
+            return _MACOS_WARNING
+    return None
+
+
 def detect_platform(root: Path) -> Platform:
     """Infer the dominant platform from file extensions in the project tree."""
     counts: Counter[Platform] = Counter()
@@ -162,13 +203,25 @@ def run_scan(
                 if token in _CATEGORY_ALIASES:
                     enabled_categories.add(_CATEGORY_ALIASES[token])
 
+    # "macos" is not a scan target but tells us the user knows this is a macOS
+    # project, so skip the macOS-only warning and treat it as iOS for rule selection.
+    suppress_macos_warn = platform.lower() == "macos"
+    effective_platform = "auto" if suppress_macos_warn else platform
+
     # Detect platform
-    if platform == "auto":
+    if effective_platform == "auto":
         detected_platform = detect_platform(root) if root.is_dir() else _detect_file_platform(root)
     else:
-        detected_platform = Platform(platform)
+        detected_platform = Platform(effective_platform)
 
     spec = _load_gitignore(root) if root.is_dir() else None
+
+    # macOS-only deployment target check (iOS projects only)
+    scan_warnings: list[str] = []
+    if not suppress_macos_warn and detected_platform == Platform.IOS and root.is_dir():
+        macos_warn = _check_xcodeproj_target(root)
+        if macos_warn:
+            scan_warnings.append(macos_warn)
 
     # Collect files to scan
     if root.is_file():
@@ -211,6 +264,22 @@ def run_scan(
 
         files_scanned += 1
 
+    # Layer 2: PrivacyInfo.xcprivacy cross-reference (iOS projects only)
+    if detected_platform == Platform.IOS and root.is_dir():
+        for finding in check_privacy_manifest(root):
+            if finding.category not in enabled_categories:
+                continue
+            if _SEVERITY_ORDER[finding.severity] >= _SEVERITY_ORDER[min_severity]:
+                all_findings.append(finding)
+
+    # Layer 3: WebView code execution architecture (Swift + Kotlin)
+    if root.is_dir():
+        for finding in check_code_execution(root):
+            if finding.category not in enabled_categories:
+                continue
+            if _SEVERITY_ORDER[finding.severity] >= _SEVERITY_ORDER[min_severity]:
+                all_findings.append(finding)
+
     summary = {
         "critical": sum(1 for f in all_findings if f.severity == Severity.CRITICAL),
         "error": sum(1 for f in all_findings if f.severity == Severity.ERROR),
@@ -228,6 +297,7 @@ def run_scan(
         findings=all_findings,
         passed=passed,
         summary=summary,
+        warnings=scan_warnings,
     )
 
 

@@ -51,6 +51,40 @@ mobileguard contract ./GeneratedFeature.swift --stage code-generation --agent cl
 mobileguard tier my-agent-01
 ```
 
+## What MobileGuard Catches — and Why Existing Tools Don't
+
+MobileGuard is not SwiftLint. It is not a code quality linter.
+It catches one specific category: governance violations in AI-generated
+mobile code that no existing tool addresses because no existing tool
+was designed with mobile deployment constraints in mind.
+
+| Tool | What it catches | What MobileGuard adds |
+|---|---|---|
+| GitHub Secret Scanning | Hardcoded secrets in source | AS-001: AI API calls without governance disclosure |
+| Xcode Analyzer | Code quality, API misuse | AS-006: AI calls without privacy manifest entry |
+| SwiftLint | Style, patterns | AS-007: AI-generated code execution in WKWebView |
+| Apple Review | Post-submission gate | PGSG: Pre-submission prediction before binary is immutable |
+| (Nothing) | — | AABE: Maps ambient agent entry points for governance documentation |
+
+### Three governance layers MobileGuard covers:
+
+**Layer 1 — Source governance (v1.0)**
+AI API calls without 5.1.2(i) disclosure, hardcoded keys, prompt
+injection, PII in requests. What happens in your code.
+
+**Layer 2 — Declaration governance (v1.1 — AS-006)**
+AI calls in source not declared in PrivacyInfo.xcprivacy. What your
+code says versus what your manifest declares. Apple rejects this
+before human review.
+
+**Layer 3 — Architectural governance (v1.1 — AS-007)**
+AI-generated content executed in WKWebView. What your binary does
+versus what Apple reviewed. Blocked Replit, Vibecode, Anything in 2026.
+
+**Layer 4 — Ambient surface governance (v1.1 — mobileguard surface)**
+Every AppIntent and AppFunction an ambient AI agent can trigger.
+What Siri and Gemini can do in your app that you may not have designed.
+
 ## Using on a Real Project
 
 ### 1. Scan a repo locally

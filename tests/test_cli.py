@@ -6,10 +6,8 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
 from mobileguard.cli import cli
@@ -112,7 +110,7 @@ class TestScanCommand:
     def test_scan_output_to_file(self, tmp_path: Path) -> None:
         out = str(tmp_path / "report.json")
         runner = CliRunner()
-        result = runner.invoke(
+        runner.invoke(
             cli,
             [
                 "scan",
@@ -195,13 +193,67 @@ class TestScanCommand:
         assert data["files_scanned"] >= 1
 
 
+class TestSurfaceCommand:
+    """Tests for mobileguard surface."""
+
+    SURFACE_DIR = FIXTURES / "swift" / "surface_payment_no_confirm"
+
+    def test_surface_table_format(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(cli, ["surface", str(self.SURFACE_DIR)])
+        assert result.exit_code == 0
+        assert "Surface" in result.output
+
+    def test_surface_json_format(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["surface", str(self.SURFACE_DIR), "--format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "entry_points" in data
+
+    def test_surface_json_has_critical(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["surface", str(self.SURFACE_DIR), "--format", "json"]
+        )
+        data = json.loads(result.output)
+        critical = [e for e in data["entry_points"] if e["risk_level"] == "CRITICAL"]
+        assert len(critical) >= 1
+
+    def test_surface_markdown_format(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["surface", str(self.SURFACE_DIR), "--format", "markdown"]
+        )
+        assert result.exit_code == 0
+        assert "Surface" in result.output
+
+    def test_surface_output_to_file(self, tmp_path: Path) -> None:
+        out = str(tmp_path / "surface.json")
+        runner = CliRunner()
+        runner.invoke(
+            cli,
+            ["surface", str(self.SURFACE_DIR), "--format", "json", "--output", out],
+        )
+        assert Path(out).exists()
+
+    def test_surface_empty_directory(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(cli, ["surface", str(tmp_path)])
+        assert result.exit_code == 0
+
+
 class TestInitCommand:
     """Tests for mobileguard init."""
 
     def test_init_creates_contract(self, tmp_path: Path) -> None:
         runner = CliRunner()
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            result = runner.invoke(cli, ["init", "--platform", "ios", "--bundle-id", "com.test.app"])
+            result = runner.invoke(
+                cli, ["init", "--platform", "ios", "--bundle-id", "com.test.app"]
+            )
             assert result.exit_code == 0
             assert Path("mobileguard.json").exists()
             data = json.loads(Path("mobileguard.json").read_text())

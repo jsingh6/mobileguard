@@ -83,10 +83,10 @@ def cli() -> None:
 @click.argument("path", type=click.Path(exists=True))
 @click.option(
     "--platform",
-    type=click.Choice(["ios", "android", "flutter", "react-native", "auto"]),
+    type=click.Choice(["ios", "android", "flutter", "react-native", "auto", "macos"]),
     default="auto",
     show_default=True,
-    help="Target platform. 'auto' detects from file extensions.",
+    help="Target platform. 'auto' detects extensions; 'macos' skips macOS warning.",
 )
 @click.option(
     "--rules",
@@ -243,6 +243,9 @@ def _print_table_result(result: ScanResult, path: str) -> None:
         )
     )
 
+    for warn in result.warnings:
+        console.print(f"\n[yellow]{warn}[/yellow]")
+
     grouped: dict[Severity, list[Finding]] = {
         Severity.CRITICAL: [],
         Severity.ERROR: [],
@@ -300,6 +303,8 @@ def _render_scan_markdown(result: ScanResult, path: str) -> str:
         f"{result.files_scanned} files scanned · {result.scan_duration_seconds}s",
         "",
     ]
+    for warn in result.warnings:
+        lines += [f"> **{warn}**", ""]
     grouped: dict[Severity, list[Finding]] = {s: [] for s in Severity}
     for f in result.findings:
         grouped[f.severity].append(f)
@@ -824,3 +829,186 @@ def init(platform: str, bundle_id: str | None, app_name: str | None, strict: boo
         "Run [cyan]mobileguard contract <path> --agent <agent-id>[/cyan]"
         " to evaluate AI-generated code."
     )
+
+
+# ── mobileguard surface ───────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+@click.option(
+    "--platform",
+    type=click.Choice(["ios", "android", "flutter", "react-native", "auto"]),
+    default="auto",
+    show_default=True,
+    help="Target platform. 'auto' detects from file extensions.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json", "markdown"]),
+    default="table",
+    show_default=True,
+    help="Output format.",
+)
+@click.option("--output", default=None, type=click.Path(), help="Write output to file.")
+@click.option(
+    "--risk",
+    is_flag=True,
+    default=False,
+    help="Show risk assessment for each entry point.",
+)
+def surface(
+    path: str,
+    platform: str,
+    output_format: str,
+    output: str | None,
+    risk: bool,
+) -> None:
+    """Map ambient AI agent entry points (Siri, AppIntents, AppFunctions).
+
+    Scans for every entry point through which a platform AI agent (Siri,
+    Apple Intelligence, Google Assistant) can take action in the app, then
+    flags those accessing sensitive data without confirmation UI.
+
+    \b
+    Examples:
+      mobileguard surface ./MyApp
+      mobileguard surface ./MyApp --platform ios --format markdown
+      mobileguard surface ./MyApp --risk
+    """
+    from mobileguard.surface import SurfaceScanner
+
+    scanner = SurfaceScanner()
+    result = scanner.scan(path, platform=platform, include_risk=risk)
+
+    if output_format == "json":
+        rendered = result.model_dump_json(indent=2)
+    elif output_format == "markdown":
+        rendered = _render_surface_markdown(result)
+    else:
+        _print_surface_table(result)
+        rendered = None
+
+    if rendered is not None:
+        if output:
+            Path(output).write_text(rendered, encoding="utf-8")
+            console.print(f"[green]Written to:[/green] {output}")
+        else:
+            click.echo(rendered)
+
+
+def _print_surface_table(result: Any) -> None:
+    """Print ambient agent surface map as a rich table."""
+    from mobileguard.surface import SurfaceScanResult
+
+    assert isinstance(result, SurfaceScanResult)
+    platform_label = result.platform.value.upper()
+
+    console.print()
+    console.print(
+        Panel(
+            f"[bold]MobileGuard Surface Map[/bold]\n"
+            f"Project: [cyan]{Path(result.project_path).name}[/cyan] "
+            f"({platform_label}) · "
+            f"{len(result.entry_points)} ambient entry point"
+            f"{'s' if len(result.entry_points) != 1 else ''} found",
+            box=box.DOUBLE_EDGE,
+            expand=False,
+        )
+    )
+
+    if not result.entry_points:
+        console.print("\n[green]No ambient agent entry points found.[/green]")
+        return
+
+    _RISK_STYLE = {
+        "CRITICAL": "bold red",
+        "HIGH": "red",
+        "MEDIUM": "yellow",
+        "LOW": "green",
+    }
+
+    for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
+        entries = [e for e in result.entry_points if e.risk_level == level]
+        if not entries:
+            continue
+        style = _RISK_STYLE[level]
+        console.print(f"\n[{style}]{level} ({len(entries)})[/{style}]")
+        for e in entries:
+            loc = f"{e.file_path}:{e.line_number}" if e.line_number else e.file_path
+            access = ", ".join(e.data_access) if e.data_access else "None"
+            confirm = "[green]Yes[/green]" if e.has_confirmation else "[yellow]Not found[/yellow]"
+            console.print(f"  [{style}]{e.finding_id or e.entry_type}[/{style}]  "
+                          f"[bold]{e.name}[/bold]  [dim]{loc}[/dim]")
+            console.print(f"          Data access: {access} · Confirmation: {confirm}")
+            if e.fix:
+                console.print(f"          [green]Fix:[/green] {e.fix[:120]}")
+
+    s = result.summary
+    console.print()
+    console.print("─" * 60)
+    console.print(
+        f"Surface summary: "
+        f"[bold red]{s.get('critical', 0)} CRITICAL[/bold red] · "
+        f"[red]{s.get('high', 0)} HIGH[/red] · "
+        f"[yellow]{s.get('medium', 0)} MEDIUM[/yellow] · "
+        f"[green]{s.get('low', 0)} LOW[/green]"
+    )
+    console.print("Run [cyan]mobileguard audit[/cyan] to include this surface map in the report.")
+    console.print()
+
+
+def _render_surface_markdown(result: Any) -> str:
+    """Render surface scan result as Markdown governance documentation."""
+    from mobileguard.surface import SurfaceScanResult
+
+    assert isinstance(result, SurfaceScanResult)
+    app_name = Path(result.project_path).name
+    date_str = result.scanned_at.strftime("%Y-%m-%d")
+    from mobileguard import __version__
+
+    lines = [
+        "# MobileGuard Ambient Agent Surface Map",
+        f"**App:** {app_name} · **Platform:** {result.platform.value.upper()} "
+        f"· **Date:** {date_str}",
+        f"**Generated by:** MobileGuard v{__version__}",
+        "",
+        "## Summary",
+        "This document maps all entry points through which platform-level AI agents "
+        "(Siri, Apple Intelligence, Google Assistant, Gemini) can take action within "
+        f"{app_name} without the user directly navigating the app interface.",
+        "",
+        "## Entry Points",
+        "",
+    ]
+
+    for e in result.entry_points:
+        risk_icon = {"CRITICAL": "CRITICAL", "HIGH": "HIGH", "MEDIUM": "MEDIUM"}.get(
+            e.risk_level, ""
+        )
+        header = f"### {e.name}"
+        if risk_icon:
+            header += f" [{risk_icon}]"
+        lines.append(header)
+        lines.append(f"- **Type:** {e.entry_type}")
+        loc_suffix = f":{e.line_number}" if e.line_number else ""
+        lines.append(f"- **Location:** `{e.file_path}`{loc_suffix}")
+        access_str = ", ".join(e.data_access) if e.data_access else "None"
+        lines.append(f"- **Data accessed:** {access_str}")
+        lines.append(f"- **Confirmation UI:** {'Present' if e.has_confirmation else 'NOT FOUND'}")
+        lines.append(f"- **Risk:** {e.risk_level}")
+        if e.finding_id:
+            lines.append(f"- **Violation:** {e.finding_id}")
+        if e.fix:
+            lines.append(f"- **Required fix:** {e.fix}")
+        lines.append("")
+
+    lines += [
+        "## Attestation",
+        f"This surface map was generated automatically by MobileGuard on {date_str}. "
+        "It represents the governance posture of the app's ambient AI surface at the "
+        "time of scan. Intended for use in compliance documentation, App Store review "
+        "responses, and EU AI Act Article 14 (human oversight) compliance evidence.",
+        "",
+    ]
+    return "\n".join(lines)

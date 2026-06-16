@@ -5,15 +5,18 @@
 
 from __future__ import annotations
 
-import pytest
-
-from mobileguard.models import RuleCategory, Severity
-from mobileguard.rules import ALL_RULES, APP_STORE_RULES, EU_AI_ACT_RULES, GOOGLE_PLAY_RULES, OWASP_RULES
-from mobileguard.detectors.swift import detect as detect_swift
-from mobileguard.detectors.kotlin import detect as detect_kotlin
 from mobileguard.detectors.dart import detect as detect_dart
 from mobileguard.detectors.javascript import detect as detect_javascript
-
+from mobileguard.detectors.kotlin import detect as detect_kotlin
+from mobileguard.detectors.swift import detect as detect_swift
+from mobileguard.models import RuleCategory, Severity
+from mobileguard.rules import (
+    ALL_RULES,
+    APP_STORE_RULES,
+    EU_AI_ACT_RULES,
+    GOOGLE_PLAY_RULES,
+    OWASP_RULES,
+)
 
 # ── Rule metadata tests ────────────────────────────────────────────────────────
 
@@ -42,7 +45,7 @@ class TestRuleMetadata:
             assert rule.pillar in valid_pillars, f"{rule_id}: invalid pillar '{rule.pillar}'"
 
     def test_app_store_rule_count(self) -> None:
-        assert len(APP_STORE_RULES) == 5
+        assert len(APP_STORE_RULES) == 9
 
     def test_google_play_rule_count(self) -> None:
         assert len(GOOGLE_PLAY_RULES) == 5
@@ -66,13 +69,13 @@ class TestRuleMetadata:
         assert OWASP_RULES["OW-001"].severity == Severity.CRITICAL
 
     def test_rule_categories(self) -> None:
-        for rule_id, rule in APP_STORE_RULES.items():
+        for _rule_id, rule in APP_STORE_RULES.items():
             assert rule.category == RuleCategory.APP_STORE
-        for rule_id, rule in GOOGLE_PLAY_RULES.items():
+        for _rule_id, rule in GOOGLE_PLAY_RULES.items():
             assert rule.category == RuleCategory.GOOGLE_PLAY
-        for rule_id, rule in EU_AI_ACT_RULES.items():
+        for _rule_id, rule in EU_AI_ACT_RULES.items():
             assert rule.category == RuleCategory.EU_AI_ACT
-        for rule_id, rule in OWASP_RULES.items():
+        for _rule_id, rule in OWASP_RULES.items():
             assert rule.category == RuleCategory.OWASP
 
 
@@ -118,7 +121,10 @@ class TestSwiftDetector:
         assert "OW-001" in ids
 
     def test_no_false_positive_clean_file(self) -> None:
-        content = "import SwiftUI\n\nstruct ContentView: View {\n    var body: some View { Text(\"Hello\") }\n}"
+        content = (
+            'import SwiftUI\n\nstruct ContentView: View '
+            '{\n    var body: some View { Text("Hello") }\n}'
+        )
         findings = detect_swift("test.swift", content)
         assert findings == []
 

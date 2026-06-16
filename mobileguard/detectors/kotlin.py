@@ -77,20 +77,30 @@ _DISCLOSURE_UI = re.compile(
     re.IGNORECASE,
 )
 
+# Lines where an AI domain URL is in a non-call context (HTML/JSX attribute, comment, JSDoc)
+_NON_CALL_CTX = re.compile(
+    r'placeholder\s*=|\bhref\s*=|^\s*[*/]|^\s*#|@param\b|@default\b',
+    re.IGNORECASE,
+)
+
 
 def detect(file_path: str, content: str) -> list[Finding]:
     """Detect governance violations in a Kotlin or Gradle file."""
     lines = content.splitlines()
     findings: list[Finding] = []
 
-    has_ai_call = bool(_AI_DOMAIN.search(content))
+    has_ai_call = any(
+        bool(_AI_DOMAIN.search(ln)) and not _NON_CALL_CTX.search(ln)
+        for ln in lines
+    )
     has_http_client = bool(_HTTP_CLIENT.search(content))
     has_data_safety = bool(_DATA_SAFETY.search(content))
     has_disclosure = bool(_DISCLOSURE_UI.search(content))
     has_log = bool(_LOG_CALL.search(content))
     has_rate_limit = bool(_RATE_LIMIT.search(content))
     ai_call_line_nums = {
-        i for i, ln in enumerate(lines, start=1) if _AI_DOMAIN.search(ln)
+        i for i, ln in enumerate(lines, start=1)
+        if _AI_DOMAIN.search(ln) and not _NON_CALL_CTX.search(ln)
     }
 
     reported_gp001 = False
@@ -103,7 +113,7 @@ def detect(file_path: str, content: str) -> list[Finding]:
 
         # GP-001: AI data transmission without DATA_SAFETY
         if not reported_gp001 and has_ai_call and has_http_client and not has_data_safety:
-            if _AI_DOMAIN.search(line):
+            if _AI_DOMAIN.search(line) and not _NON_CALL_CTX.search(line):
                 rule = GOOGLE_PLAY_RULES["GP-001"]
                 findings.append(
                     Finding(
@@ -160,7 +170,8 @@ def detect(file_path: str, content: str) -> list[Finding]:
             )
 
         # EU-001: AI call without disclosure UI
-        if not reported_eu001 and _AI_DOMAIN.search(line) and not has_disclosure:
+        if (not reported_eu001 and _AI_DOMAIN.search(line)
+                and not _NON_CALL_CTX.search(line) and not has_disclosure):
             rule = EU_AI_ACT_RULES["EU-001"]
             findings.append(
                 Finding(
@@ -179,7 +190,8 @@ def detect(file_path: str, content: str) -> list[Finding]:
             reported_eu001 = True
 
         # EU-003: AI call without logging
-        if not reported_eu003 and _AI_DOMAIN.search(line) and not has_log:
+        if (not reported_eu003 and _AI_DOMAIN.search(line)
+                and not _NON_CALL_CTX.search(line) and not has_log):
             rule = EU_AI_ACT_RULES["EU-003"]
             findings.append(
                 Finding(
@@ -272,7 +284,8 @@ def detect(file_path: str, content: str) -> list[Finding]:
             )
 
         # OW-005: AI call without rate limiting
-        if not reported_ow005 and _AI_DOMAIN.search(line) and not has_rate_limit:
+        if (not reported_ow005 and _AI_DOMAIN.search(line)
+                and not _NON_CALL_CTX.search(line) and not has_rate_limit):
             rule = OWASP_RULES["OW-005"]
             findings.append(
                 Finding(

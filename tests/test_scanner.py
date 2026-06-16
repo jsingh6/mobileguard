@@ -7,10 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from mobileguard.models import Platform, RuleCategory, Severity
-from mobileguard.scanner import run_scan, detect_platform, findings_meet_fail_threshold
+from mobileguard.scanner import detect_platform, findings_meet_fail_threshold, run_scan
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -204,3 +202,116 @@ class TestScannerUtilities:
         assert result.scan_duration_seconds >= 0
         assert isinstance(result.summary, dict)
         assert "critical" in result.summary
+
+
+class TestAS006PrivacyManifest:
+    """AS-006: PrivacyInfo.xcprivacy mismatch tests."""
+
+    def test_as006_missing_manifest(self) -> None:
+        """AS-006 fires when AI API call exists but no PrivacyInfo.xcprivacy."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as006_no_manifest"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        ids = {f.rule_id for f in result.findings}
+        assert "AS-006" in ids, f"AS-006 not found. Got: {ids}"
+        as006 = [f for f in result.findings if f.rule_id == "AS-006"]
+        assert as006[0].severity == Severity.CRITICAL
+
+    def test_as006_manifest_mismatch(self) -> None:
+        """AS-006 fires only for the undeclared domain (anthropic), not openai."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as006_mismatch"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        as006 = [f for f in result.findings if f.rule_id == "AS-006"]
+        assert len(as006) == 1, (
+            f"Expected 1 AS-006, got {len(as006)}: {[f.evidence for f in as006]}"
+        )
+        assert as006[0].evidence is not None
+        assert "anthropic" in as006[0].evidence.lower()
+
+    def test_as006_passes_when_manifest_complete(self) -> None:
+        """AS-006 does not fire when all AI domains are declared in manifest."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "pass_as006_complete"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        ids = {f.rule_id for f in result.findings}
+        assert "AS-006" not in ids, f"False positive AS-006: {ids}"
+
+    def test_as006_clean_when_no_ai_calls(self) -> None:
+        """AS-006 does not fire when there are no AI API calls in source."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as007_webview"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        ids = {f.rule_id for f in result.findings}
+        assert "AS-006" not in ids
+
+
+class TestAS007CodeExecution:
+    """AS-007: WKWebView dynamic content execution tests."""
+
+    def test_as007_webview_html_string(self) -> None:
+        """AS-007 fires for loadHTMLString with variable arg."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as007_webview"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        ids = {f.rule_id for f in result.findings}
+        assert "AS-007" in ids, f"AS-007 not found. Got: {ids}"
+
+    def test_as007_is_critical(self) -> None:
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as007_webview"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        as007 = [f for f in result.findings if f.rule_id == "AS-007"]
+        assert as007
+        assert as007[0].severity == Severity.CRITICAL
+
+    def test_as007_both_patterns_detected(self) -> None:
+        """Both loadHTMLString and evaluateJavaScript patterns fire."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as007_webview"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        as007 = [f for f in result.findings if f.rule_id == "AS-007"]
+        assert len(as007) >= 2, f"Expected ≥2 AS-007, got {len(as007)}"
+
+    def test_as007_jseval_detected(self) -> None:
+        """AS-007 fires for evaluateJavaScript and evaluateScript patterns."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as007_jseval"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        ids = {f.rule_id for f in result.findings}
+        assert "AS-007" in ids, f"AS-007 not found. Got: {ids}"
+
+    def test_as007_passes_with_safari_view_controller(self) -> None:
+        """AS-007 does not fire when SFSafariViewController is used (safe pattern)."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "pass_as007_external"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        ids = {f.rule_id for f in result.findings}
+        assert "AS-007" not in ids, f"False positive AS-007: {ids}"

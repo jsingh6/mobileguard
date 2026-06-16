@@ -6,19 +6,16 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
-
 from mobileguard.audit import (
+    _build_compliance_status,
     generate_report,
     render_html,
     render_json,
     render_markdown,
-    _build_compliance_status,
 )
-from mobileguard.models import Finding, Platform, RuleCategory, Severity, ScanResult
+from mobileguard.models import Finding, Platform, RuleCategory, ScanResult, Severity
 
 
 def _make_scan_result(findings: list[Finding], path: str = "/tmp/test") -> ScanResult:
@@ -130,7 +127,9 @@ class TestRenderMarkdown:
 
     def test_markdown_contains_app_name(self, tmp_path: Path) -> None:
         scan = _make_scan_result([], path=str(tmp_path))
-        report = generate_report(scan, app_name="MyTestApp", version="2.0", platforms=[Platform.IOS])
+        report = generate_report(
+            scan, app_name="MyTestApp", version="2.0", platforms=[Platform.IOS]
+        )
         md = render_markdown(report)
         assert "MyTestApp" in md
 
@@ -189,6 +188,8 @@ class TestRenderHTML:
 
     def test_html_contains_app_name(self, tmp_path: Path) -> None:
         scan = _make_scan_result([], path=str(tmp_path))
-        report = generate_report(scan, app_name="MyHTMLApp", version="1.0", platforms=[Platform.IOS])
+        report = generate_report(
+            scan, app_name="MyHTMLApp", version="1.0", platforms=[Platform.IOS]
+        )
         html = render_html(report)
         assert "MyHTMLApp" in html

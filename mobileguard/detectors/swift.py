@@ -92,6 +92,13 @@ _RATE_LIMIT = re.compile(
 
 _NSPrivacy = re.compile(r"NSPrivacyCollectedDataTypes")
 
+# Lines where an AI domain URL appears in a non-call context: HTML/JSX attribute,
+# comment, or JSDoc. These should not trigger disclosure or rate-limit findings.
+_NON_CALL_CTX = re.compile(
+    r'placeholder\s*=|\bhref\s*=|^\s*[*/]|^\s*#|@param\b|@default\b',
+    re.IGNORECASE,
+)
+
 
 def detect(file_path: str, content: str) -> list[Finding]:
     """Detect governance violations in a Swift or plist file."""
@@ -108,7 +115,11 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
     lines = content.splitlines()
     findings: list[Finding] = []
 
-    has_ai_call = bool(_AI_DOMAIN.search(content))
+    has_real_ai_call = any(
+        bool(_AI_DOMAIN.search(ln)) and not _NON_CALL_CTX.search(ln)
+        for ln in lines
+    )
+    has_ai_call = has_real_ai_call  # cleared after first AS-001 report (dedup)
     has_disclosure = bool(_DISCLOSURE.search(content))
     has_log = bool(_LOG_CALL.search(content))
     has_rate_limit = bool(_RATE_LIMIT.search(content))
@@ -117,7 +128,8 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
         stripped = line.strip()
 
         # AS-001: AI domain call without disclosure
-        if has_ai_call and not has_disclosure and _AI_DOMAIN.search(line):
+        if (has_ai_call and not has_disclosure
+                and _AI_DOMAIN.search(line) and not _NON_CALL_CTX.search(line)):
             rule = APP_STORE_RULES["AS-001"]
             findings.append(
                 Finding(
@@ -179,7 +191,8 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
         # (file-level check — project-level check is in scanner.py)
 
         # EU-001: AI API call without disclosure label in same file
-        if _AI_DOMAIN.search(line) and not _DISCLOSURE.search(content):
+        if (_AI_DOMAIN.search(line) and not _NON_CALL_CTX.search(line)
+                and not _DISCLOSURE.search(content)):
             rule = EU_AI_ACT_RULES["EU-001"]
             findings.append(
                 Finding(
@@ -197,7 +210,7 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
             )
 
         # EU-003: AI call without any logging in the file
-        if _AI_DOMAIN.search(line) and not has_log:
+        if _AI_DOMAIN.search(line) and not _NON_CALL_CTX.search(line) and not has_log:
             rule = EU_AI_ACT_RULES["EU-003"]
             findings.append(
                 Finding(
@@ -216,7 +229,7 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
             has_log = True  # report once per file
 
         # OW-001: user input interpolated into prompt string
-        if _AI_DOMAIN.search(content) and _USER_INPUT_INTERP.search(line):
+        if has_real_ai_call and _USER_INPUT_INTERP.search(line):
             rule = OWASP_RULES["OW-001"]
             findings.append(
                 Finding(
@@ -234,7 +247,7 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
             )
 
         # OW-002: AI output loaded into WebView without visible sanitization
-        if _WEBVIEW_LOAD.search(line) and _AI_DOMAIN.search(content):
+        if _WEBVIEW_LOAD.search(line) and has_real_ai_call:
             rule = OWASP_RULES["OW-002"]
             findings.append(
                 Finding(
@@ -252,7 +265,7 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
             )
 
         # OW-003: PII variable passed to AI API in same file
-        if _AI_DOMAIN.search(content) and _PII_VARS.search(line):
+        if has_real_ai_call and _PII_VARS.search(line):
             rule = OWASP_RULES["OW-003"]
             findings.append(
                 Finding(
@@ -270,7 +283,7 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
             )
 
         # OW-004: UserDefaults storing data when AI is used in the file
-        if _USERDEFAULTS_STORE.search(line) and _AI_DOMAIN.search(content):
+        if _USERDEFAULTS_STORE.search(line) and has_real_ai_call:
             rule = OWASP_RULES["OW-004"]
             findings.append(
                 Finding(
@@ -288,7 +301,7 @@ def _detect_swift(file_path: str, content: str) -> list[Finding]:
             )
 
         # OW-005: AI API call with no rate limiting anywhere in the file
-        if _AI_DOMAIN.search(line) and not has_rate_limit:
+        if _AI_DOMAIN.search(line) and not _NON_CALL_CTX.search(line) and not has_rate_limit:
             rule = OWASP_RULES["OW-005"]
             findings.append(
                 Finding(

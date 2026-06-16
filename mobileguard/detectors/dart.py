@@ -64,18 +64,28 @@ _PERMISSION_HANDLER = re.compile(r"permission_handler|Permission\.", re.IGNORECA
 
 _ISOLATE_MISUSE = re.compile(r"compute\s*\(|Isolate\.spawn\b")
 
+# Lines where an AI domain URL is in a non-call context (HTML/JSX attribute, comment, JSDoc)
+_NON_CALL_CTX = re.compile(
+    r'placeholder\s*=|\bhref\s*=|^\s*[*/]|^\s*#|@param\b|@default\b',
+    re.IGNORECASE,
+)
+
 
 def detect(file_path: str, content: str) -> list[Finding]:
     """Detect governance violations in a Flutter/Dart file."""
     lines = content.splitlines()
     findings: list[Finding] = []
 
-    has_ai_call = bool(_AI_DOMAIN.search(content))
+    has_ai_call = any(
+        bool(_AI_DOMAIN.search(ln)) and not _NON_CALL_CTX.search(ln)
+        for ln in lines
+    )
     has_disclosure = bool(_DISCLOSURE.search(content))
     has_log = bool(_LOG_CALL.search(content))
     has_rate_limit = bool(_RATE_LIMIT.search(content))
     ai_call_line_nums = {
-        i for i, ln in enumerate(lines, start=1) if _AI_DOMAIN.search(ln)
+        i for i, ln in enumerate(lines, start=1)
+        if _AI_DOMAIN.search(ln) and not _NON_CALL_CTX.search(ln)
     }
 
     reported: set[str] = set()
@@ -104,7 +114,7 @@ def detect(file_path: str, content: str) -> list[Finding]:
                 )
 
         # AS-001 / GP-001: AI domain call without disclosure
-        if _AI_DOMAIN.search(line):
+        if _AI_DOMAIN.search(line) and not _NON_CALL_CTX.search(line):
             if "AS-001" not in reported and not has_disclosure:
                 rule = APP_STORE_RULES["AS-001"]
                 findings.append(

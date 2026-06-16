@@ -83,4 +83,71 @@ RULES: dict[str, RuleDefinition] = {
         reference="https://developer.apple.com/documentation/bundleresources/privacy_manifest_files",
         pillar="PGSG",
     ),
+    "AS-006": RuleDefinition(
+        id="AS-006",
+        severity=Severity.CRITICAL,
+        category=RuleCategory.APP_STORE,
+        description=(
+            "AI API domain detected in source but not declared in PrivacyInfo.xcprivacy "
+            "(NSPrivacyTrackingDomains)"
+        ),
+        fix=(
+            "Add the AI domain to NSPrivacyTrackingDomains in PrivacyInfo.xcprivacy and declare "
+            "the corresponding NSPrivacyCollectedDataType entry. Apple rejects apps before human "
+            "review if third-party data collectors are undeclared in the privacy manifest."
+        ),
+        reference="https://developer.apple.com/documentation/bundleresources/privacy_manifest_files",
+        pillar="PGSG",
+    ),
+    "AS-007": RuleDefinition(
+        id="AS-007",
+        severity=Severity.CRITICAL,
+        category=RuleCategory.APP_STORE,
+        description=(
+            "WKWebView or JavaScript engine executing dynamic content violates "
+            "App Store Guideline 2.5.2 (self-contained apps)"
+        ),
+        fix=(
+            "Open AI-generated content in an external browser via UIApplication.shared.open() "
+            "or SFSafariViewController. Never load AI-generated HTML strings or evaluate "
+            "AI-generated JavaScript inside WKWebView. Apple blocked Replit and Vibecode in "
+            "March 2026 for this exact pattern."
+        ),
+        reference="https://developer.apple.com/app-store/review/guidelines/#2.5.2",
+        pillar="PGSG",
+    ),
+    "AABE-001": RuleDefinition(
+        id="AABE-001",
+        severity=Severity.CRITICAL,
+        category=RuleCategory.APP_STORE,
+        description=(
+            "AppIntent accesses financial or payment data without requestConfirmation() — "
+            "ambient agent can initiate payment without explicit user approval"
+        ),
+        fix=(
+            "Add requestConfirmation() before any financial action: "
+            "try await requestConfirmation(result: .result(value: preview)). "
+            "Apple Guideline 5.1.2(i) requires explicit consent before any AI-triggered "
+            "action that involves financial or sensitive user data."
+        ),
+        reference="https://developer.apple.com/documentation/appintents/requesting-user-confirmation",
+        pillar="AABE",
+    ),
+    "AABE-002": RuleDefinition(
+        id="AABE-002",
+        severity=Severity.ERROR,
+        category=RuleCategory.APP_STORE,
+        description=(
+            "AppIntent accesses sensitive user data (contacts, health, location, calendar) "
+            "without requestConfirmation() or explicit authorization check"
+        ),
+        fix=(
+            "Add requestConfirmation() or a dedicated authorization check before accessing "
+            "contacts, health, location, or calendar data from an AppIntent. "
+            "Siri and Apple Intelligence can invoke this intent without the user directly "
+            "opening the app."
+        ),
+        reference="https://developer.apple.com/documentation/appintents/requesting-user-confirmation",
+        pillar="AABE",
+    ),
 }

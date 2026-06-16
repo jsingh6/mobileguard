@@ -77,6 +77,10 @@ class ScanResult(BaseModel):
     summary: dict[str, int] = Field(
         description="Finding counts keyed by severity (critical, error, warning, info)"
     )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Non-fatal diagnostic messages from the scan engine.",
+    )
 
 
 class ContractVerdict(BaseModel):

@@ -6,18 +6,13 @@
 from __future__ import annotations
 
 import json
-import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
-
-import pytest
 
 from mobileguard.tier import (
     TIER_DEFINITIONS,
+    _next_tier,
     compute_tier,
     format_history_table,
-    _load_history,
-    _next_tier,
 )
 
 
