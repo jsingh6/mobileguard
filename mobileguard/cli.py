@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 from rich import box
@@ -357,7 +358,7 @@ def _render_sarif(result: ScanResult) -> str:
 
     sarif_results = []
     for f in result.findings:
-        loc: dict = {
+        loc: dict[str, Any] = {
             "physicalLocation": {
                 "artifactLocation": {"uri": f.file_path.replace("\\", "/")},
             }
@@ -784,7 +785,7 @@ def init(platform: str, bundle_id: str | None, app_name: str | None, strict: boo
         "min_crash_free_session_rate": 0.999 if strict else 0.997,
     }
 
-    contract: dict = {
+    contract: dict[str, Any] = {
         "version": "1.0",
         "platform": platform,
         "app_name": app_name or "My App",

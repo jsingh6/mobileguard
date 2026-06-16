@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mobileguard.models import ContractVerdict, Platform
 
@@ -38,7 +38,7 @@ def load_contract(contract_path: str) -> dict[str, Any]:
             "to create one."
         )
     try:
-        return json.loads(path.read_text())
+        return cast(dict[str, Any], json.loads(path.read_text()))
     except json.JSONDecodeError as exc:
         raise ValueError(
             f"mobileguard.json is not valid JSON: {exc}\n"

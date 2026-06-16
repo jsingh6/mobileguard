@@ -157,7 +157,9 @@ def evaluate_contract(
                 temperature=0.1,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = response.content[0].text.strip()
+            from anthropic.types import TextBlock
+            text_blocks = [b for b in response.content if isinstance(b, TextBlock)]
+            raw = text_blocks[0].text.strip() if text_blocks else ""
             data = json.loads(raw)
             break
         except anthropic.RateLimitError as exc:

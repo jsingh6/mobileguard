@@ -85,7 +85,7 @@ _SEVERITY_ORDER = {
 }
 
 
-def _load_gitignore(root: Path) -> pathspec.PathSpec | None:
+def _load_gitignore(root: Path) -> pathspec.PathSpec | None:  # type: ignore[type-arg]
     """Load .gitignore from the project root, or return None if absent."""
     gitignore = root / ".gitignore"
     if gitignore.exists():
@@ -93,7 +93,7 @@ def _load_gitignore(root: Path) -> pathspec.PathSpec | None:
     return None
 
 
-def _should_skip(path: Path, root: Path, spec: pathspec.PathSpec | None) -> bool:
+def _should_skip(path: Path, root: Path, spec: pathspec.PathSpec | None) -> bool:  # type: ignore[type-arg]
     """Return True if this path should be excluded from scanning."""
     for part in path.parts:
         if part in _SKIP_DIRS:
