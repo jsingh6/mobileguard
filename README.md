@@ -51,6 +51,73 @@ mobileguard contract ./GeneratedFeature.swift --stage code-generation --agent cl
 mobileguard tier my-agent-01
 ```
 
+## Using on a Real Project
+
+### 1. Scan a repo locally
+
+```bash
+# Clone any iOS / Android / Flutter app and scan it
+git clone https://github.com/some-org/some-app
+mobileguard scan ./some-app --platform ios
+
+# Focus on store-blocking issues only
+mobileguard scan ./some-app --platform ios --fail-on critical --rules app-store,eu-ai-act
+
+# Export SARIF for the GitHub Security tab
+mobileguard scan ./some-app --platform ios --format sarif --output results.sarif
+```
+
+### 2. Add to the app's CI pipeline
+
+Add this to the **app repo's** workflow (not MobileGuard's own CI). Pin the version so
+governance rules don't silently change between runs.
+
+```yaml
+- name: MobileGuard governance scan
+  run: |
+    pip install mobileguard==1.1.0
+    mobileguard scan . --platform ios --fail-on critical --format sarif --output mobileguard.sarif
+
+- name: Upload to GitHub Security tab
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: mobileguard.sarif
+```
+
+With `--fail-on critical`, the step exits 1 and blocks the PR if any App Store or EU AI Act
+critical violation is found. Violations appear inline on the PR diff in the Security tab.
+
+### 3. Pre-release compliance audit
+
+Run before cutting a release branch to generate the formal document for legal or App Store review:
+
+```bash
+mobileguard audit ./MyApp \
+  --app-name "MyApp" \
+  --version "3.2.0" \
+  --platform ios \
+  --format html \
+  --output audit-3.2.0.html
+```
+
+Open `audit-3.2.0.html` in a browser and use File → Print → Save as PDF to produce the
+compliance document. (PDF export direct from the CLI is planned for v1.2.)
+
+### 4. Evaluate AI-generated code against a contract
+
+```bash
+# One-time setup
+mobileguard init --platform ios --bundle-id com.example.myapp
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Run after each AI agent produces code
+mobileguard contract ./GeneratedFeature.swift --stage code-review --agent claude-code
+```
+
+Results are appended to an append-only audit log at `.mobileguard/audit/`. Use
+`mobileguard tier <agent-id>` to see how much autonomous authority the agent has earned
+based on its history of clean evaluation cycles.
+
 ## Supported Platforms
 
 | Platform | Language | Detector |
@@ -160,7 +227,7 @@ Options:
   --include-evidence               Include code snippets as evidence
 ```
 
-> **PDF export:** Coming in v1.1. For now, convert the HTML output using your
+> **PDF export:** Planned for v1.2. For now, convert the HTML output using your
 > browser's print-to-PDF (Chrome: File → Print → Save as PDF).
 
 ### `mobileguard tier`
