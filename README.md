@@ -5,7 +5,8 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/mobileguard.svg)](https://pypi.org/project/mobileguard/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Paper](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
+[![Zenodo](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20970167-blue.svg)](https://doi.org/10.5281/zenodo.20970167)
+[![ORCID](https://img.shields.io/badge/ORCID-0009--0007--4988--1493-green.svg)](https://orcid.org/0009-0007-4988-1493)
 [![CI](https://github.com/jsingh6/mobileguard/actions/workflows/ci.yml/badge.svg)](https://github.com/jsingh6/mobileguard/actions/workflows/ci.yml)
 
 ## The Problem
@@ -411,9 +412,10 @@ API responses are never logged.
 
 MobileGuard is the reference implementation of:
 
-> **"MobileGuard: A Stack-Agnostic Governance Framework for Agentic AI
-> Across Consumer Mobile Delivery Platforms"**
-> Jaspreet Singh · [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX) · 2026
+> **"MobileGuard: A Mobile-Native Governance Framework for Agentic AI"**
+> Jaspreet Singh · Independent Researcher, San Diego, CA
+> [Zenodo DOI: 10.5281/zenodo.20970167](https://doi.org/10.5281/zenodo.20970167) · 2026
+> ORCID: [0009-0007-4988-1493](https://orcid.org/0009-0007-4988-1493)
 
 ### Four Governance Pillars
 
@@ -427,13 +429,13 @@ MobileGuard is the reference implementation of:
 ## Citation
 
 ```bibtex
-@article{singh2026mobileguard,
-  title   = {{MobileGuard}: A Stack-Agnostic Governance Framework for Agentic {AI}
-             Across Consumer Mobile Delivery Platforms},
+@misc{singh2026mobileguard,
+  title   = {{MobileGuard}: A Mobile-Native Governance Framework for Agentic {AI}},
   author  = {Singh, Jaspreet},
-  journal = {arXiv preprint arXiv:XXXX.XXXXX},
   year    = {2026},
-  url     = {https://arxiv.org/abs/XXXX.XXXXX}
+  doi     = {10.5281/zenodo.20970167},
+  url     = {https://doi.org/10.5281/zenodo.20970167},
+  note    = {Zenodo preprint. ORCID: 0009-0007-4988-1493}
 }
 ```
 
