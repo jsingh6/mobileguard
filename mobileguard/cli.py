@@ -18,6 +18,8 @@ Exit codes:
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import sys
 from pathlib import Path
@@ -1012,3 +1014,249 @@ def _render_surface_markdown(result: Any) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+# ── mobileguard releases ──────────────────────────────────────────────────────
+
+@cli.command()
+@click.option(
+    "--platform",
+    type=click.Choice(["ios", "android"]),
+    default="ios",
+    show_default=True,
+    help="Store to scan. iOS uses iTunes Search API; Android uses google-play-scraper.",
+)
+@click.option(
+    "--cohort",
+    type=click.Choice(["ai-native", "traditional", "social"]),
+    default="ai-native",
+    show_default=True,
+    help=(
+        "Built-in search term preset. "
+        "ai-native: 15 AI-related terms (Study 3 Cohort 1). "
+        "traditional: 15 category terms (Study 3 Cohort 2). "
+        "social: social media and messaging apps (TAC-M focus)."
+    ),
+)
+@click.option(
+    "--terms",
+    default=None,
+    help="Comma-separated custom search terms (overrides --cohort).",
+)
+@click.option(
+    "--limit",
+    default=50,
+    show_default=True,
+    type=int,
+    help="Max apps to fetch per search term (max 200 for iOS, 30 for Android).",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json", "csv"]),
+    default="table",
+    show_default=True,
+    help="Output format.",
+)
+@click.option(
+    "--output",
+    type=click.Path(),
+    default=None,
+    help="Write results to file instead of stdout.",
+)
+@click.option(
+    "--fail-on",
+    "fail_on",
+    type=click.Choice(["critical", "warning", "info"]),
+    default=None,
+    help="Exit 1 if any finding at this severity or above is found.",
+)
+def releases(
+    platform: str,
+    cohort: str,
+    terms: str | None,
+    limit: int,
+    output_format: str,
+    output: str | None,
+    fail_on: str | None,
+) -> None:
+    """Scan App Store / Google Play release notes for AI governance signals (AS-009).
+
+    Implements the AS-009 Release Notes AI Disclosure Scanner from the MobileGuard
+    research paper (DOI: 10.5281/zenodo.20970167), validated against 942 real mobile
+    platform apps with a 4.0% governance signal rate.
+
+    \\b
+    Rules applied:
+      AS-009-A  CRITICAL  Multiple named AI providers without consent modal update
+      AS-009-B  WARNING   AI introduced to non-AI user base without disclosure
+      AS-009-C  INFO      Training data collection without opt-out disclosure
+      AS-009-D  WARNING   Biometric/behavioral data without explicit consent
+      AS-009-F  CRITICAL  Autonomous action without per-action confirmation (TAC-M)
+
+    \\b
+    Examples:
+      mobileguard releases --platform ios --cohort ai-native
+      mobileguard releases --platform ios --cohort social --limit 30
+      mobileguard releases --platform ios --terms "fitness tracker,workout app"
+      mobileguard releases --platform ios --cohort traditional --format csv --output results.csv
+      mobileguard releases --platform android --cohort ai-native
+    """
+    from mobileguard.releases import run_releases_scan, COHORT_TERMS
+
+    custom_terms = [t.strip() for t in terms.split(",")] if terms else None
+    terms_preview = custom_terms or COHORT_TERMS.get(cohort, [])
+
+    err_console.print(
+        f"[dim]Scanning {platform.upper()} release notes "
+        f"({'custom terms' if custom_terms else cohort} cohort, "
+        f"{len(terms_preview)} terms, max {limit}/term)...[/dim]"
+    )
+
+    scanned_so_far = [0]
+    flagged_so_far = [0]
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=err_console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Fetching apps...", total=None)
+
+        def _cb(term: str, fetched: int, flagged: int) -> None:
+            scanned_so_far[0] += fetched
+            flagged_so_far[0] += flagged
+            progress.update(
+                task,
+                description=(
+                    f"'{term}' — {scanned_so_far[0]} apps scanned, "
+                    f"{flagged_so_far[0]} flagged"
+                ),
+            )
+
+        result = run_releases_scan(
+            platform=platform,
+            cohort=cohort,
+            terms=custom_terms,
+            limit_per_term=limit,
+            progress_callback=_cb,
+        )
+
+    # Render warnings
+    for warn in result.scan_warnings:
+        err_console.print(f"[yellow]Warning:[/yellow] {warn}")
+
+    # Render output
+    if output_format == "json":
+        import dataclasses
+        rendered = json.dumps(
+            [dataclasses.asdict(f) for f in result.findings], indent=2
+        )
+    elif output_format == "csv":
+        rendered = _render_releases_csv(result)
+    else:
+        rendered = None
+
+    if rendered is not None:
+        if output:
+            Path(output).write_text(rendered, encoding="utf-8")
+            console.print(f"[green]Results written to:[/green] {output}")
+        else:
+            click.echo(rendered)
+    else:
+        _print_releases_table(result)
+
+    # Exit code
+    if fail_on:
+        sev_weight = {"critical": 3, "warning": 2, "info": 1}
+        threshold = sev_weight[fail_on]
+        if any(sev_weight.get(f.severity, 0) >= threshold for f in result.findings):
+            sys.exit(1)
+
+
+def _print_releases_table(result: Any) -> None:
+    """Print AS-009 scan results as a rich table."""
+    from mobileguard.releases import ReleasesScanResult
+    assert isinstance(result, ReleasesScanResult)
+
+    flag_pct = f"{result.flag_rate * 100:.1f}%"
+    console.print()
+    console.print(
+        Panel(
+            f"[bold]MobileGuard Releases Scan — AS-009[/bold]\n"
+            f"Platform: [cyan]{result.platform.upper()}[/cyan] · "
+            f"Cohort: {result.cohort} · "
+            f"{result.apps_scanned} apps scanned · "
+            f"{result.apps_flagged} flagged ({flag_pct}) · "
+            f"{result.scan_duration_seconds}s",
+            box=box.DOUBLE_EDGE,
+            expand=False,
+        )
+    )
+
+    if result.first_party_excluded:
+        console.print(
+            f"[dim]First-party apps excluded: {result.first_party_excluded} "
+            f"(Anthropic, OpenAI, Meta, Google, Microsoft, Apple)[/dim]"
+        )
+
+    if result.android_null_count:
+        console.print(
+            f"[yellow]Android null recentChanges: {result.android_null_count} "
+            f"(Google Play does not mandate release note disclosure)[/yellow]"
+        )
+
+    if not result.findings:
+        console.print("\n[green]No AS-009 governance signals found.[/green]")
+        return
+
+    _SEV_STYLE = {"critical": "bold red", "warning": "yellow", "info": "blue"}
+
+    for sev in ("critical", "warning", "info"):
+        findings_at_sev = [f for f in result.findings if f.severity == sev]
+        if not findings_at_sev:
+            continue
+        style = _SEV_STYLE[sev]
+        console.print(f"\n[{style}]{sev.upper()} ({len(findings_at_sev)})[/{style}]")
+        for f in findings_at_sev:
+            console.print(
+                f"  [{style}]{f.rule_id}[/{style}]  "
+                f"[bold]{f.app_name}[/bold]  "
+                f"[dim]{f.developer} · v{f.version} · {f.category}[/dim]"
+            )
+            console.print(f"          {f.description}")
+            if f.matched_text:
+                console.print(f"          [dim]→ \"{f.matched_text[:100]}\"[/dim]")
+            console.print(f"          [green]→ Fix:[/green] {f.fix[:120]}")
+
+    s = result.summary
+    console.print()
+    console.print("─" * 60)
+    console.print(
+        f"Summary: [bold red]{s.get('critical', 0)} CRITICAL[/bold red] · "
+        f"[yellow]{s.get('warning', 0)} WARNING[/yellow] · "
+        f"[blue]{s.get('info', 0)} INFO[/blue] · "
+        f"Flag rate: {flag_pct}"
+    )
+    console.print()
+
+
+def _render_releases_csv(result: Any) -> str:
+    """Render releases findings as CSV."""
+    import csv
+    import io
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "severity", "rule_id", "pillar", "app_name", "developer",
+        "bundle_id", "version", "category", "platform",
+        "description", "matched_text", "fix", "search_term", "scanned_at",
+    ])
+    for f in result.findings:
+        writer.writerow([
+            f.severity, f.rule_id, f.pillar, f.app_name, f.developer,
+            f.bundle_id, f.version, f.category, f.platform,
+            f.description, f.matched_text, f.fix, f.search_term, f.scanned_at,
+        ])
+    return buf.getvalue()
