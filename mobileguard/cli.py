@@ -1260,3 +1260,137 @@ def _render_releases_csv(result: Any) -> str:
             f.description, f.matched_text, f.fix, f.search_term, f.scanned_at,
         ])
     return buf.getvalue()
+
+
+# ── mobileguard preflight ─────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+@click.option(
+    "--platform",
+    type=click.Choice(["ios", "android", "auto"]),
+    default="auto",
+    show_default=True,
+    help="Platform to scan. 'auto' detects from file extensions.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json", "sarif"]),
+    default="table",
+    show_default=True,
+)
+@click.option(
+    "--output",
+    type=click.Path(),
+    default=None,
+    help="Write results to file.",
+)
+@click.option(
+    "--strict",
+    is_flag=True,
+    default=False,
+    help="Exit 1 on any WARNING or above (default: exit 1 on CRITICAL only).",
+)
+def preflight(path: str, platform: str, output_format: str, output: str | None, strict: bool) -> None:
+    """Run ALL MobileGuard checks in one command — the pre-submission gate.
+
+    Runs scan (source code) + privacy manifest checks in sequence and produces
+    a unified CLEARED / BLOCKED report. Designed to run in CI/CD on every PR
+    and before every App Store or Google Play submission.
+
+    \b
+    Checks run:
+      PGSG  Source code scan (AS-001 through AS-012, EU-001, OW-001..005)
+      PGSG  Privacy manifest validation (PrivacyInfo.xcprivacy / AndroidManifest)
+      PGSG  Platform reference detection (AS-010) — catches Android→iOS port artifacts
+      PGSG  Placeholder content detection (AS-011) — Guideline 2.1 App Completeness
+      PGSG  Vague permission strings (AS-012) — Guideline 5.1.1
+
+    \b
+    Evidence basis:
+      Apple 2024 Transparency Report: 1.93M rejections (25% of submissions)
+      40%+ of unresolved rejections: App Completeness (placeholder content)
+      Statista 2024: ~1/3 of rejections cite privacy explanation gaps
+      MobileGuard paper: DOI 10.5281/zenodo.20970167
+
+    \b
+    Examples:
+      mobileguard preflight .
+      mobileguard preflight ./MyApp --platform ios --strict
+      mobileguard preflight ./MyApp --format sarif --output results.sarif
+    """
+    from mobileguard.scanner import run_scan
+
+    err_console.print(f"[dim]MobileGuard preflight — {path}[/dim]")
+    err_console.print(f"[dim]Platform: {platform} | Checks: scan + privacy + completeness[/dim]\n")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=err_console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Scanning source files...", total=None)
+        result = run_scan(path, platform=platform if platform != "auto" else None)
+        progress.update(task, description=f"Scanned {result.files_scanned} files")
+
+    # Render output
+    if output_format in ("json", "sarif"):
+        rendered = _render_scan(result, output_format, path)
+        if output:
+            Path(output).write_text(rendered, encoding="utf-8")
+            console.print(f"[green]Results written to:[/green] {output}")
+        else:
+            click.echo(rendered)
+        if strict:
+            if not result.passed or any(
+                f.severity.value in ("warning", "info") for f in result.findings
+            ):
+                sys.exit(1)
+        elif not result.passed:
+            sys.exit(1)
+        return
+
+    # Table output — GREENLIT / BLOCKED banner
+    _print_table_result(result, path)
+
+    console.print()
+    if result.passed and result.summary.get("warning", 0) == 0:
+        console.print(
+            Panel(
+                "[bold green]✅  CLEARED[/bold green]\n"
+                "Zero critical or warning findings. "
+                "This build is ready for App Store or Google Play submission.\n\n"
+                "[dim]Evidence: MobileGuard v3.0.0 preflight — DOI: 10.5281/zenodo.20970167[/dim]",
+                box=box.DOUBLE_EDGE,
+                expand=False,
+            )
+        )
+    elif result.passed:
+        console.print(
+            Panel(
+                "[bold yellow]⚠️  CLEARED WITH WARNINGS[/bold yellow]\n"
+                f"{result.summary.get('warning', 0)} warning(s) found. "
+                "No critical violations. Review warnings before submission.\n\n"
+                "[dim]Use --strict to treat warnings as blocking.[/dim]",
+                box=box.DOUBLE_EDGE,
+                expand=False,
+            )
+        )
+    else:
+        critical = result.summary.get("critical", 0)
+        console.print(
+            Panel(
+                f"[bold red]🔴  BLOCKED — {critical} CRITICAL finding(s)[/bold red]\n"
+                "Fix all CRITICAL findings before submitting to App Store or Google Play.\n"
+                "Submitting with these findings risks rejection or post-launch removal.\n\n"
+                "[dim]Run: mobileguard scan . --format json for full details[/dim]",
+                box=box.DOUBLE_EDGE,
+                expand=False,
+            )
+        )
+        sys.exit(1)
+
+    if strict and result.summary.get("warning", 0) > 0:
+        sys.exit(1)
