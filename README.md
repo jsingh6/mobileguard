@@ -1,5 +1,5 @@
 # MobileGuard
-![Uploading mobileguard-banner.png…]()
+<img width="924" height="308" alt="mobileguard-banner" src="https://github.com/user-attachments/assets/b7289497-4fa8-4aa9-85fa-7cc43e7188dc" />
 
 > AI governance for consumer mobile platforms.
 > Prevents App Store and Google Play rejections caused by AI-generated code.
