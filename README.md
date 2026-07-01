@@ -1,4 +1,5 @@
 # MobileGuard
+![Uploading mobileguard-banner.png…]()
 
 > AI governance for consumer mobile platforms.
 > Prevents App Store and Google Play rejections caused by AI-generated code.
