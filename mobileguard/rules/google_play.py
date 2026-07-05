@@ -12,7 +12,7 @@ Rule IDs are stable and cited in the MobileGuard research paper (arXiv:XXXX.XXXX
 Pillar: PGSG (Platform Gatekeeper Simulation Gates).
 """
 
-from mobileguard.models import RuleCategory, RuleDefinition, Severity
+from mobileguard.models import Distribution, RuleCategory, RuleDefinition, Severity
 
 RULES: dict[str, RuleDefinition] = {
     "GP-001": RuleDefinition(
@@ -27,6 +27,7 @@ RULES: dict[str, RuleDefinition] = {
         ),
         reference="https://support.google.com/googleplay/android-developer/answer/10787469",
         pillar="PGSG",
+        distribution_channels=[Distribution.GOOGLE_PLAY],
     ),
     "GP-002": RuleDefinition(
         id="GP-002",

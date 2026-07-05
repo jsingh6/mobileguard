@@ -24,7 +24,8 @@ from pathlib import Path
 import pathspec
 
 from mobileguard.detectors import detect_dart, detect_javascript, detect_kotlin, detect_swift
-from mobileguard.models import Finding, Platform, RuleCategory, ScanResult, Severity
+from mobileguard.models import Distribution, Finding, Platform, RuleCategory, ScanResult, Severity
+from mobileguard.rules import ALL_RULES
 from mobileguard.rules.code_execution import check_code_execution
 from mobileguard.rules.privacy_manifest import check_privacy_manifest
 
@@ -174,6 +175,7 @@ def run_scan(
     rules: str = "all",
     min_severity: Severity = Severity.WARNING,
     enabled_categories: set[RuleCategory] | None = None,
+    distribution: set[Distribution] | None = None,
     progress_callback: Callable[[str], None] | None = None,
 ) -> ScanResult:
     """Scan a mobile project directory for governance violations.
@@ -184,6 +186,9 @@ def run_scan(
         rules: Comma-separated rule categories, or 'all'.
         min_severity: Minimum severity level to include in results.
         enabled_categories: Override rule category filter (derived from rules if None).
+        distribution: Active distribution channels. Rules whose distribution_channels
+            do not intersect with this set are suppressed. None means all channels
+            are active (existing behaviour — no suppression).
         progress_callback: Optional callable receiving the current file path string.
 
     Returns:
@@ -260,6 +265,8 @@ def run_scan(
                 continue
             if _SEVERITY_ORDER[finding.severity] < _SEVERITY_ORDER[min_severity]:
                 continue
+            if not _distribution_applies(finding.rule_id, distribution):
+                continue
             all_findings.append(finding)
 
         files_scanned += 1
@@ -269,16 +276,22 @@ def run_scan(
         for finding in check_privacy_manifest(root):
             if finding.category not in enabled_categories:
                 continue
-            if _SEVERITY_ORDER[finding.severity] >= _SEVERITY_ORDER[min_severity]:
-                all_findings.append(finding)
+            if _SEVERITY_ORDER[finding.severity] < _SEVERITY_ORDER[min_severity]:
+                continue
+            if not _distribution_applies(finding.rule_id, distribution):
+                continue
+            all_findings.append(finding)
 
     # Layer 3: WebView code execution architecture (Swift + Kotlin)
     if root.is_dir():
         for finding in check_code_execution(root):
             if finding.category not in enabled_categories:
                 continue
-            if _SEVERITY_ORDER[finding.severity] >= _SEVERITY_ORDER[min_severity]:
-                all_findings.append(finding)
+            if _SEVERITY_ORDER[finding.severity] < _SEVERITY_ORDER[min_severity]:
+                continue
+            if not _distribution_applies(finding.rule_id, distribution):
+                continue
+            all_findings.append(finding)
 
     summary = {
         "critical": sum(1 for f in all_findings if f.severity == Severity.CRITICAL),
@@ -299,6 +312,22 @@ def run_scan(
         summary=summary,
         warnings=scan_warnings,
     )
+
+
+def _distribution_applies(rule_id: str, distribution: set[Distribution] | None) -> bool:
+    """Return True if the rule should fire for the given distribution channels.
+
+    A rule with no distribution_channels is universal — always fires.
+    A rule with distribution_channels only fires when at least one of those
+    channels is in the active distribution set.
+    None distribution means all channels active — no suppression.
+    """
+    if distribution is None:
+        return True
+    rule = ALL_RULES.get(rule_id)
+    if rule is None or rule.distribution_channels is None:
+        return True
+    return bool(set(rule.distribution_channels) & distribution)
 
 
 def _detect_file_platform(path: Path) -> Platform:

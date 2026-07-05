@@ -49,6 +49,27 @@ class RuleCategory(StrEnum):
     OWASP = "owasp"
 
 
+class Distribution(StrEnum):
+    """Distribution channel — determines which store-submission rules apply.
+
+    Rules with distribution_channels set only fire when the project targets
+    one of those channels. Rules with distribution_channels=None apply to all.
+
+    Precedent:
+      SH-P001: GP-001 suppressed for sideload — Starkka15/PocketTavern#6
+               Owner explicitly opted out of Play Store distribution.
+      SH-P002: AS-007 suppressed for sideload/enterprise — Apple Guideline 2.5.2
+               is enforced at App Store review; no review = no enforcement.
+    """
+
+    APP_STORE = "app-store"
+    GOOGLE_PLAY = "google-play"
+    TESTFLIGHT = "testflight"
+    SIDELOAD = "sideload"
+    ENTERPRISE = "enterprise"
+    F_DROID = "f-droid"
+
+
 class Finding(BaseModel):
     """A single governance violation detected by MobileGuard."""
 
@@ -146,3 +167,11 @@ class RuleDefinition(BaseModel):
     reference: str
     pillar: str
     deprecated: bool = False
+    distribution_channels: list[Distribution] | None = Field(
+        default=None,
+        description=(
+            "Distribution channels where this rule applies. "
+            "None means the rule applies regardless of distribution channel. "
+            "Set to a specific list for store-submission-only rules."
+        ),
+    )

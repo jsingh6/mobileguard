@@ -32,7 +32,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from mobileguard import __version__
-from mobileguard.models import Finding, ScanResult, Severity
+from mobileguard.models import Distribution, Finding, ScanResult, Severity
 
 console = Console()
 err_console = Console(stderr=True)
@@ -77,6 +77,32 @@ def cli() -> None:
       1  Fail — violations found
       2  Error — bad path, missing API key, or configuration problem
     """
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+_VALID_CHANNELS = {d.value for d in Distribution}
+
+
+def _parse_distribution(raw: str | None) -> set[Distribution] | None:
+    """Parse a comma-separated distribution string into a set of Distribution values.
+
+    Returns None if raw is None (no suppression — all rules active).
+    Exits with code 2 on unrecognised channel names.
+    """
+    if raw is None:
+        return None
+    channels: set[Distribution] = set()
+    for token in raw.split(","):
+        token = token.strip().lower()
+        if token not in _VALID_CHANNELS:
+            err_console.print(
+                f"[red]Error:[/red] Unknown distribution channel '{token}'. "
+                f"Valid values: {', '.join(sorted(_VALID_CHANNELS))}"
+            )
+            sys.exit(2)
+        channels.add(Distribution(token))
+    return channels or None
 
 
 # ── mobileguard scan ──────────────────────────────────────────────────────────
@@ -125,6 +151,16 @@ def cli() -> None:
     help="Exit 1 if any violation at this severity or above is found.",
 )
 @click.option(
+    "--distribution",
+    default=None,
+    help=(
+        "Comma-separated distribution channels: app-store, google-play, testflight, "
+        "sideload, enterprise, f-droid. "
+        "Store-specific rules (GP-001, AS-007) are suppressed when the channel they "
+        "require is not listed. Omit to apply all rules regardless of channel."
+    ),
+)
+@click.option(
     "--llm",
     is_flag=True,
     default=False,
@@ -144,6 +180,7 @@ def scan(
     output_format: str,
     output: str | None,
     fail_on: str | None,
+    distribution: str | None,
     llm: bool,
     api_key: str | None,
 ) -> None:
@@ -171,6 +208,7 @@ def scan(
     from mobileguard.scanner import findings_meet_fail_threshold, run_scan
 
     min_sev = Sev(severity)
+    active_distribution = _parse_distribution(distribution)
     scanned_files: list[str] = []
 
     with Progress(
@@ -191,6 +229,7 @@ def scan(
                 platform=platform,
                 rules=rules,
                 min_severity=min_sev,
+                distribution=active_distribution,
                 progress_callback=_cb,
             )
         except Exception as exc:
@@ -1287,12 +1326,21 @@ def _render_releases_csv(result: Any) -> str:
     help="Write results to file.",
 )
 @click.option(
+    "--distribution",
+    default=None,
+    help=(
+        "Comma-separated distribution channels: app-store, google-play, testflight, "
+        "sideload, enterprise, f-droid. Store-specific rules are suppressed when their "
+        "required channel is not listed."
+    ),
+)
+@click.option(
     "--strict",
     is_flag=True,
     default=False,
     help="Exit 1 on any WARNING or above (default: exit 1 on CRITICAL only).",
 )
-def preflight(path: str, platform: str, output_format: str, output: str | None, strict: bool) -> None:
+def preflight(path: str, platform: str, output_format: str, output: str | None, distribution: str | None, strict: bool) -> None:
     """Run ALL MobileGuard checks in one command — the pre-submission gate.
 
     Runs scan (source code) + privacy manifest checks in sequence and produces
@@ -1322,6 +1370,7 @@ def preflight(path: str, platform: str, output_format: str, output: str | None, 
     """
     from mobileguard.scanner import run_scan
 
+    active_distribution = _parse_distribution(distribution)
     err_console.print(f"[dim]MobileGuard preflight — {path}[/dim]")
     err_console.print(f"[dim]Platform: {platform} | Checks: scan + privacy + completeness[/dim]\n")
 
@@ -1332,7 +1381,11 @@ def preflight(path: str, platform: str, output_format: str, output: str | None, 
         transient=True,
     ) as progress:
         task = progress.add_task("Scanning source files...", total=None)
-        result = run_scan(path, platform=platform if platform != "auto" else None)
+        result = run_scan(
+            path,
+            platform=platform if platform != "auto" else None,
+            distribution=active_distribution,
+        )
         progress.update(task, description=f"Scanned {result.files_scanned} files")
 
     # Render output

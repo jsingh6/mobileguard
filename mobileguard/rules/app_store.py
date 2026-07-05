@@ -12,7 +12,7 @@ Rule IDs are stable and cited in the MobileGuard research paper (arXiv:XXXX.XXXX
 Pillar: PGSG (Platform Gatekeeper Simulation Gates).
 """
 
-from mobileguard.models import RuleCategory, RuleDefinition, Severity
+from mobileguard.models import Distribution, RuleCategory, RuleDefinition, Severity
 
 RULES: dict[str, RuleDefinition] = {
     "AS-001": RuleDefinition(
@@ -115,6 +115,7 @@ RULES: dict[str, RuleDefinition] = {
         ),
         reference="https://developer.apple.com/app-store/review/guidelines/#2.5.2",
         pillar="PGSG",
+        distribution_channels=[Distribution.APP_STORE, Distribution.TESTFLIGHT],
     ),
     "AABE-001": RuleDefinition(
         id="AABE-001",
