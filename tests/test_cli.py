@@ -420,3 +420,71 @@ class TestContractCommand:
             )
             assert result.exit_code == 2
             assert "mobileguard init" in result.output
+
+
+class TestCliPreflight:
+    """mobileguard preflight — the pre-submission gate."""
+
+    def test_auto_platform_does_not_crash(self) -> None:
+        """Regression: --platform auto (the default) used to pass None into run_scan."""
+        result = CliRunner().invoke(
+            cli, ["preflight", str(FIXTURES / "swift" / "violation_as006_mismatch")]
+        )
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+        assert "BLOCKED" in result.output
+        assert result.exit_code == 1
+
+    def test_clean_project_is_cleared(self, tmp_path: Path) -> None:
+        (tmp_path / "App.swift").write_text("struct App {}\n")
+        result = CliRunner().invoke(cli, ["preflight", str(tmp_path), "--platform", "ios"])
+        assert result.exit_code == 0
+        assert "CLEARED" in result.output
+
+    def test_json_output_to_file(self, tmp_path: Path) -> None:
+        out = tmp_path / "preflight.json"
+        result = CliRunner().invoke(
+            cli,
+            [
+                "preflight",
+                str(FIXTURES / "swift" / "violation_as006_mismatch"),
+                "--format", "json",
+                "--output", str(out),
+            ],
+        )
+        assert result.exit_code == 1
+        data = json.loads(out.read_text())
+        assert "AS-006" in {f["rule_id"] for f in data["findings"]}
+
+    def test_sarif_to_stdout(self, tmp_path: Path) -> None:
+        (tmp_path / "App.swift").write_text("struct App {}\n")
+        result = CliRunner().invoke(
+            cli, ["preflight", str(tmp_path), "--platform", "ios", "--format", "sarif"]
+        )
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["version"] == "2.1.0"
+
+    def test_strict_fails_on_warnings(self, tmp_path: Path) -> None:
+        (tmp_path / "Info.plist").write_text(
+            "<plist><dict><key>NSCameraUsageDescription</key>"
+            "<string>This app uses your data to improve your experience</string>"
+            "</dict></plist>\n"
+        )
+        args = ["preflight", str(tmp_path), "--platform", "ios"]
+        assert CliRunner().invoke(cli, args).exit_code == 0
+        assert CliRunner().invoke(cli, [*args, "--strict"]).exit_code == 1
+        json_args = [*args, "--format", "json", "--strict"]
+        assert CliRunner().invoke(cli, json_args).exit_code == 1
+
+    def test_distribution_suppresses_store_rules(self) -> None:
+        result = CliRunner().invoke(
+            cli,
+            [
+                "preflight",
+                str(FIXTURES / "swift" / "violation_as007_webview"),
+                "--platform", "ios",
+                "--distribution", "sideload",
+                "--format", "json",
+            ],
+        )
+        data = json.loads(result.stdout)
+        assert "AS-007" not in {f["rule_id"] for f in data["findings"]}

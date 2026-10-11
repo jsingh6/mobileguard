@@ -32,15 +32,13 @@ Rules:
 
 from __future__ import annotations
 
+import json
 import re
 import time
 import urllib.parse
 import urllib.request
-import json
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Iterator
-
+from datetime import UTC, datetime
 
 # ── First-party exclusions (prevent false positives) ─────────────────────────
 
@@ -178,7 +176,7 @@ class ReleasesFinding:
     matched_text: str
     fix: str
     search_term: str
-    scanned_at: str = field(default_factory=lambda: datetime.now(tz=__import__('datetime').timezone.utc).isoformat())
+    scanned_at: str = field(default_factory=lambda: datetime.now(tz=UTC).isoformat())
 
 
 @dataclass
@@ -224,7 +222,8 @@ def _fetch_ios_apps(term: str, limit: int = 50) -> list[AppRecord]:
 
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "MobileGuard/3.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        # nosec B310: fixed https://itunes.apple.com URL; scheme is not user-controlled
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             data = json.loads(resp.read().decode("utf-8"))
     except Exception:
         return []
@@ -251,7 +250,8 @@ def _fetch_ios_apps(term: str, limit: int = 50) -> list[AppRecord]:
 def _fetch_android_apps(term: str, limit: int = 50) -> tuple[list[AppRecord], int]:
     """Fetch Android apps via google-play-scraper. Returns (records, null_count)."""
     try:
-        from google_play_scraper import search, app as gp_app  # type: ignore
+        from google_play_scraper import app as gp_app
+        from google_play_scraper import search
     except ImportError:
         return [], 0
 

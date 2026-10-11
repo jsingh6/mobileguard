@@ -338,3 +338,50 @@ class TestAS007CodeExecution:
         )
         ids = {f.rule_id for f in result.findings}
         assert "AS-007" not in ids, f"False positive AS-007: {ids}"
+
+
+class TestScannerEdgeCases:
+    """Project-walk behaviour: ignores, macOS targets, single files."""
+
+    _AI_CALL = 'let url = URL(string: "https://api.anthropic.com/v1/messages")!\n'
+
+    def test_gitignored_files_are_skipped(self, tmp_path: Path) -> None:
+        (tmp_path / ".gitignore").write_text("generated/\n")
+        (tmp_path / "generated").mkdir()
+        (tmp_path / "generated" / "Client.swift").write_text(self._AI_CALL)
+        result = run_scan(str(tmp_path), platform="ios", min_severity=Severity.INFO)
+        assert not any(f.file_path.startswith("generated/") for f in result.findings)
+
+    def test_generated_suffix_is_skipped(self, tmp_path: Path) -> None:
+        (tmp_path / "Api.generated.swift").write_text(self._AI_CALL)
+        result = run_scan(str(tmp_path), platform="ios", min_severity=Severity.INFO)
+        assert result.files_scanned == 0
+
+    def test_macos_only_project_warns(self, tmp_path: Path) -> None:
+        proj = tmp_path / "Mac.xcodeproj"
+        proj.mkdir()
+        (proj / "project.pbxproj").write_text("SDKROOT = macosx;\n")
+        (tmp_path / "App.swift").write_text("struct App {}\n")
+        result = run_scan(str(tmp_path), platform="ios")
+        assert any("macOS" in w for w in result.warnings)
+        silenced = run_scan(str(tmp_path), platform="macos")
+        assert silenced.warnings == []
+
+    def test_ios_project_does_not_warn(self, tmp_path: Path) -> None:
+        proj = tmp_path / "App.xcodeproj"
+        proj.mkdir()
+        (proj / "project.pbxproj").write_text("SDKROOT = iphoneos;\nSDKROOT = macosx;\n")
+        (tmp_path / "App.swift").write_text("struct App {}\n")
+        assert run_scan(str(tmp_path), platform="ios").warnings == []
+
+    def test_single_file_scan(self, tmp_path: Path) -> None:
+        f = tmp_path / "Client.swift"
+        f.write_text(self._AI_CALL)
+        result = run_scan(str(f), min_severity=Severity.INFO)
+        assert result.files_scanned == 1
+        assert "AS-001" in {x.rule_id for x in result.findings}
+
+    def test_rule_category_filter(self, tmp_path: Path) -> None:
+        (tmp_path / "Client.swift").write_text(self._AI_CALL)
+        result = run_scan(str(tmp_path), platform="ios", rules="owasp", min_severity=Severity.INFO)
+        assert {f.category.value for f in result.findings} <= {"owasp"}
