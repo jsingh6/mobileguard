@@ -32,7 +32,7 @@ class TestCliHelp:
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "1." in result.output
+        assert "version 3." in result.output
 
     def test_scan_help(self) -> None:
         runner = CliRunner()
@@ -488,3 +488,15 @@ class TestCliPreflight:
         )
         data = json.loads(result.stdout)
         assert "AS-007" not in {f["rule_id"] for f in data["findings"]}
+
+
+def test_version_matches_pyproject() -> None:
+    """__version__ (shown by --version and in SARIF) must match the package version."""
+    import tomllib
+
+    from mobileguard import __version__
+
+    pyproject = Path(__file__).parent.parent / "pyproject.toml"
+    assert __version__ == tomllib.loads(pyproject.read_text())["project"]["version"]
+    result = CliRunner().invoke(cli, ["--version"])
+    assert __version__ in result.output

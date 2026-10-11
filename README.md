@@ -172,7 +172,7 @@ governance rules don't silently change between runs.
 ```yaml
 - name: MobileGuard governance scan
   run: |
-    pip install mobileguard==3.1.0
+    pip install mobileguard==3.2.0
     mobileguard scan . --platform ios --fail-on critical --format sarif --output mobileguard.sarif
 
 - name: Upload to GitHub Security tab

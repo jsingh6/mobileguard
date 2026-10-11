@@ -10,7 +10,7 @@ date-released: 2026
 url: "https://github.com/jsingh6/mobileguard"
 repository-code: "https://github.com/jsingh6/mobileguard"
 license: Apache-2.0
-version: "1.0.0"
+version: "3.2.0"
 abstract: >-
   MobileGuard is a Python CLI tool and reference implementation of the
   MobileGuard governance framework for agentic AI on consumer mobile platforms.

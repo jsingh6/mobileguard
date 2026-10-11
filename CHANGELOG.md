@@ -2,7 +2,7 @@
 
 All notable changes to MobileGuard are documented here.
 
-## [Unreleased]
+## [3.2.0] — 2026-10-10
 
 ### Added
 - **MobileGuard agent skill** (`skills/mobileguard/`), installable with
@@ -26,6 +26,13 @@ All notable changes to MobileGuard are documented here.
 - **AS-001 treated the ATT prompt as AI consent.** ATT covers cross-app tracking
   only. The fix text now describes a real AI consent gate, and the Swift detector no
   longer counts `ATTrackingManager` as disclosure.
+
+- `mobileguard preflight` crashed with the default `--platform auto`.
+- `mobileguard contract` raised `TypeError` with current Anthropic SDKs
+  (unsupported `temperature` argument).
+- AS-006/AS-007 project-wide checks now honour `.gitignore` and
+  generated-file suffixes, like the per-file detectors.
+- `mobileguard --version` and SARIF output reported 1.3.0.
 
 ### Removed
 - Stale, unused duplicates `mobileguard/swift.py`, `mobileguard/app_store.py`, and

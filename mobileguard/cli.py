@@ -1420,7 +1420,8 @@ def preflight(
                 "[bold green]✅  CLEARED[/bold green]\n"
                 "Zero critical or warning findings. "
                 "This build is ready for App Store or Google Play submission.\n\n"
-                "[dim]Evidence: MobileGuard v3.0.0 preflight — DOI: 10.5281/zenodo.20970167[/dim]",
+                f"[dim]Evidence: MobileGuard v{__version__} preflight — "
+                "DOI: 10.5281/zenodo.20970167[/dim]",
                 box=box.DOUBLE_EDGE,
                 expand=False,
             )
