@@ -154,7 +154,6 @@ def evaluate_contract(
             response = client.messages.create(
                 model=_MODEL,
                 max_tokens=2048,
-                temperature=0.1,
                 messages=[{"role": "user", "content": prompt}],
             )
             from anthropic.types import TextBlock

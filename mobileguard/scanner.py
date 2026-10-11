@@ -274,6 +274,8 @@ def run_scan(
     # Layer 2: PrivacyInfo.xcprivacy cross-reference (iOS projects only)
     if detected_platform == Platform.IOS and root.is_dir():
         for finding in check_privacy_manifest(root):
+            if _should_skip(root / finding.file_path, root, spec):
+                continue
             if finding.category not in enabled_categories:
                 continue
             if _SEVERITY_ORDER[finding.severity] < _SEVERITY_ORDER[min_severity]:
@@ -285,6 +287,8 @@ def run_scan(
     # Layer 3: WebView code execution architecture (Swift + Kotlin)
     if root.is_dir():
         for finding in check_code_execution(root):
+            if _should_skip(root / finding.file_path, root, spec):
+                continue
             if finding.category not in enabled_categories:
                 continue
             if _SEVERITY_ORDER[finding.severity] < _SEVERITY_ORDER[min_severity]:

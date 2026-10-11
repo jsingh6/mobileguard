@@ -21,9 +21,10 @@ RULES: dict[str, RuleDefinition] = {
         category=RuleCategory.APP_STORE,
         description="Third-party AI data sharing without 5.1.2(i) disclosure",
         fix=(
-            "Add a PrivacyDisclosureView or ATTrackingManager.requestTrackingAuthorization "
-            "call before the first AI API request. Users must be informed that their data "
-            "is being sent to a third-party AI service."
+            "Before the first AI API request, show a consent screen that names the AI provider "
+            "and the data sent (messages, voice, photos), requires an explicit tap, and is "
+            "stored and revocable in Settings. Every AI request path must check it. The App "
+            "Tracking Transparency prompt is not AI consent: it covers cross-app tracking only."
         ),
         reference="https://developer.apple.com/app-store/review/guidelines/#data-collection-and-storage",
         pillar="PGSG",
@@ -88,13 +89,18 @@ RULES: dict[str, RuleDefinition] = {
         severity=Severity.CRITICAL,
         category=RuleCategory.APP_STORE,
         description=(
-            "AI API domain detected in source but not declared in PrivacyInfo.xcprivacy "
-            "(NSPrivacyTrackingDomains)"
+            "AI API usage not reflected correctly in PrivacyInfo.xcprivacy (manifest missing, "
+            "no NSPrivacyCollectedDataTypes, or AI domain misdeclared as a tracking domain)"
         ),
         fix=(
-            "Add the AI domain to NSPrivacyTrackingDomains in PrivacyInfo.xcprivacy and declare "
-            "the corresponding NSPrivacyCollectedDataType entry. Apple rejects apps before human "
-            "review if third-party data collectors are undeclared in the privacy manifest."
+            "Declare the data your AI feature sends in NSPrivacyCollectedDataTypes: e.g. "
+            "NSPrivacyCollectedDataTypeOtherUserContent for chat text, ...AudioData for voice, "
+            "...PhotosorVideos for images, with Linked and purpose "
+            "NSPrivacyCollectedDataTypePurposeAppFunctionality. Keep AI provider domains OUT of "
+            "NSPrivacyTrackingDomains: iOS blocks requests to tracking domains until the user "
+            "grants App Tracking Transparency, which breaks the AI feature. Expo projects set "
+            "this in app.json under expo.ios.privacyManifests. Match the App Store Connect "
+            "privacy label to the same data types."
         ),
         reference="https://developer.apple.com/documentation/bundleresources/privacy_manifest_files",
         pillar="PGSG",

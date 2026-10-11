@@ -1141,7 +1141,7 @@ def releases(
       mobileguard releases --platform ios --cohort traditional --format csv --output results.csv
       mobileguard releases --platform android --cohort ai-native
     """
-    from mobileguard.releases import run_releases_scan, COHORT_TERMS
+    from mobileguard.releases import COHORT_TERMS, run_releases_scan
 
     custom_terms = [t.strip() for t in terms.split(",")] if terms else None
     terms_preview = custom_terms or COHORT_TERMS.get(cohort, [])
@@ -1283,8 +1283,6 @@ def _print_releases_table(result: Any) -> None:
 
 def _render_releases_csv(result: Any) -> str:
     """Render releases findings as CSV."""
-    import csv
-    import io
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
@@ -1340,7 +1338,14 @@ def _render_releases_csv(result: Any) -> str:
     default=False,
     help="Exit 1 on any WARNING or above (default: exit 1 on CRITICAL only).",
 )
-def preflight(path: str, platform: str, output_format: str, output: str | None, distribution: str | None, strict: bool) -> None:
+def preflight(
+    path: str,
+    platform: str,
+    output_format: str,
+    output: str | None,
+    distribution: str | None,
+    strict: bool,
+) -> None:
     """Run ALL MobileGuard checks in one command — the pre-submission gate.
 
     Runs scan (source code) + privacy manifest checks in sequence and produces
@@ -1383,7 +1388,7 @@ def preflight(path: str, platform: str, output_format: str, output: str | None, 
         task = progress.add_task("Scanning source files...", total=None)
         result = run_scan(
             path,
-            platform=platform if platform != "auto" else None,
+            platform=platform,
             distribution=active_distribution,
         )
         progress.update(task, description=f"Scanned {result.files_scanned} files")
@@ -1415,7 +1420,8 @@ def preflight(path: str, platform: str, output_format: str, output: str | None, 
                 "[bold green]✅  CLEARED[/bold green]\n"
                 "Zero critical or warning findings. "
                 "This build is ready for App Store or Google Play submission.\n\n"
-                "[dim]Evidence: MobileGuard v3.0.0 preflight — DOI: 10.5281/zenodo.20970167[/dim]",
+                f"[dim]Evidence: MobileGuard v{__version__} preflight — "
+                "DOI: 10.5281/zenodo.20970167[/dim]",
                 box=box.DOUBLE_EDGE,
                 expand=False,
             )

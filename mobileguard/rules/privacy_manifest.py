@@ -55,8 +55,10 @@ def check_privacy_manifest(root: Path) -> list[Finding]:
     """Cross-reference AI API calls in source against PrivacyInfo.xcprivacy.
 
     Returns AS-006 findings for:
-    - Each AI domain called in source that is absent from NSPrivacyTrackingDomains
     - No PrivacyInfo.xcprivacy at all when AI API calls are present
+    - A manifest that cannot be parsed
+    - An AI domain listed in NSPrivacyTrackingDomains (requests fail without ATT)
+    - No NSPrivacyCollectedDataTypes entries although user data goes to an AI API
     """
     rule = APP_STORE_RULES["AS-006"]
 
@@ -137,17 +139,42 @@ def check_privacy_manifest(root: Path) -> list[Finding]:
             )
         return findings
 
-    # NSPrivacyTrackingDomains: list of declared external domains
-    declared: set[str] = {
+    manifest_rel = str(privacy_info.relative_to(root))
+
+    # Step 5 — AI hosts must NOT be declared as tracking domains. iOS fails
+    # network requests to NSPrivacyTrackingDomains until the user grants App
+    # Tracking Transparency, so the AI feature silently breaks for most users.
+    tracking: set[str] = {
         d.lower()
         for d in plist_data.get("NSPrivacyTrackingDomains", [])
         if isinstance(d, str)
     }
-
-    # Step 5 — flag undeclared AI domains
-    for domain, (file_path, line_num) in used_domains.items():
-        if domain in declared:
+    for domain in sorted(used_domains):
+        if domain not in tracking:
             continue
+        findings.append(
+            Finding(
+                rule_id=rule.id,
+                severity=rule.severity,
+                category=rule.category,
+                description=rule.description,
+                file_path=manifest_rel,
+                line_number=None,
+                evidence=(
+                    f"{domain} is listed in NSPrivacyTrackingDomains — iOS blocks requests "
+                    "to it until the user grants App Tracking Transparency"
+                ),
+                fix=rule.fix,
+                reference=rule.reference,
+                pillar=rule.pillar,
+            )
+        )
+
+    # Step 6 — data sent to AI providers must appear in NSPrivacyCollectedDataTypes
+    collected = plist_data.get("NSPrivacyCollectedDataTypes")
+    if not isinstance(collected, list) or not collected:
+        first_domain = sorted(used_domains)[0]
+        file_path, line_num = used_domains[first_domain]
         findings.append(
             Finding(
                 rule_id=rule.id,
@@ -157,8 +184,8 @@ def check_privacy_manifest(root: Path) -> list[Finding]:
                 file_path=file_path,
                 line_number=line_num,
                 evidence=(
-                    f"AI API call to {domain} detected but not declared in "
-                    "PrivacyInfo.xcprivacy (NSPrivacyTrackingDomains)"
+                    f"AI API call to {first_domain} sends user data, but {manifest_rel} "
+                    "declares no NSPrivacyCollectedDataTypes"
                 ),
                 fix=rule.fix,
                 reference=rule.reference,

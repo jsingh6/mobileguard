@@ -41,3 +41,6 @@ MANIFEST
 *.key
 .env.local
 .env.*.local
+
+# Test fixture with a fake key (MG-S01 detection)
+!tests/fixtures/**/.env

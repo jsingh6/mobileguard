@@ -31,7 +31,7 @@ _AI_DOMAIN = re.compile(
 )
 
 _DISCLOSURE = re.compile(
-    r"PrivacyDisclosureView|ATTrackingManager|requestTrackingAuthorization",
+    r"PrivacyDisclosureView|AIDisclosure\w*|AIConsent\w*|aiConsent\w*|hasAcceptedAI\w*",
 )
 
 _API_KEY = re.compile(
