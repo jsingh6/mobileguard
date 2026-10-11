@@ -105,11 +105,21 @@ class TestSwiftDetector:
     def test_as001_suppressed_with_disclosure(self) -> None:
         content = (
             'URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)\n'
-            "ATTrackingManager.requestTrackingAuthorization { _ in }"
+            "guard AIConsentStore.shared.hasConsented else { return }"
         )
         findings = detect_swift("test.swift", content)
         ids = {f.rule_id for f in findings}
         assert "AS-001" not in ids
+
+    def test_as001_not_suppressed_by_att_prompt(self) -> None:
+        """ATT covers cross-app tracking only; it is not consent to share data with AI."""
+        content = (
+            'URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)\n'
+            "ATTrackingManager.requestTrackingAuthorization { _ in }"
+        )
+        findings = detect_swift("test.swift", content)
+        ids = {f.rule_id for f in findings}
+        assert "AS-001" in ids
 
     def test_ow001_detects_interpolation(self) -> None:
         content = (

@@ -37,6 +37,16 @@ All four checks must pass before submitting a PR. CI enforces them automatically
    in the fixture.
 6. Update `README.md` to document the new rule in the Rule Sets table.
 
+## Contributing to the Agent Skill
+
+The skill lives in `skills/mobileguard/`. Its checks are prose, not code:
+
+- **Store checks** (`MG-Rxx`) live in `references/store-rejection.md`. **Security checks** (`MG-Sxx`) live in `references/ai-security.md`. Each check names the guideline it enforces (quoted where possible), what to trace, when it is *not* a finding, and the fix.
+- **Rejection evidence is the most valuable contribution.** If a real rejection isn't covered, open an issue with the guideline cited, the anonymized reviewer text, and the root cause.
+- **Check IDs are stable**, like CLI rule IDs: never renumber them.
+- **Platform-specific detail** goes in `references/react-native.md` or `references/platform-apis.md`, mapped to an existing check ID.
+- **New lead patterns** go in `scripts/ai_surface.py`. It stays stdlib-only and Python 3.8-compatible. Add a case to `tests/test_skill_ai_surface.py` and, if needed, to `tests/fixtures/react_native_ai_app/`.
+
 ## Rule ID Stability
 
 Rule IDs (`AS-001`, `GP-001`, `EU-001`, `OW-001`, etc.) are **permanent and stable**.

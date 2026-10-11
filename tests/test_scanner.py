@@ -220,8 +220,8 @@ class TestAS006PrivacyManifest:
         as006 = [f for f in result.findings if f.rule_id == "AS-006"]
         assert as006[0].severity == Severity.CRITICAL
 
-    def test_as006_manifest_mismatch(self) -> None:
-        """AS-006 fires only for the undeclared domain (anthropic), not openai."""
+    def test_as006_ai_domain_declared_as_tracking_domain(self) -> None:
+        """AS-006 fires when an AI host is in NSPrivacyTrackingDomains (blocked without ATT)."""
         result = run_scan(
             str(FIXTURES / "swift" / "violation_as006_mismatch"),
             platform="ios",
@@ -233,10 +233,33 @@ class TestAS006PrivacyManifest:
             f"Expected 1 AS-006, got {len(as006)}: {[f.evidence for f in as006]}"
         )
         assert as006[0].evidence is not None
-        assert "anthropic" in as006[0].evidence.lower()
+        assert "api.openai.com" in as006[0].evidence
+        assert "NSPrivacyTrackingDomains" in as006[0].evidence
+        assert as006[0].file_path.endswith("PrivacyInfo.xcprivacy")
+
+    def test_as006_no_collected_data_types(self) -> None:
+        """AS-006 fires when AI calls send data but NSPrivacyCollectedDataTypes is empty."""
+        result = run_scan(
+            str(FIXTURES / "swift" / "violation_as006_no_collected_types"),
+            platform="ios",
+            rules="all",
+            min_severity=Severity.INFO,
+        )
+        as006 = [f for f in result.findings if f.rule_id == "AS-006"]
+        assert len(as006) == 1
+        assert as006[0].evidence is not None
+        assert "NSPrivacyCollectedDataTypes" in as006[0].evidence
+
+    def test_as006_fix_never_recommends_tracking_domains(self) -> None:
+        """Regression: the fix must not tell users to add AI hosts to tracking domains."""
+        from mobileguard.rules import APP_STORE_RULES
+
+        fix = APP_STORE_RULES["AS-006"].fix
+        assert "OUT of NSPrivacyTrackingDomains" in fix
+        assert "ATTrackingManager" not in APP_STORE_RULES["AS-001"].fix
 
     def test_as006_passes_when_manifest_complete(self) -> None:
-        """AS-006 does not fire when all AI domains are declared in manifest."""
+        """AS-006 clean: collected data declared, no AI host listed as a tracking domain."""
         result = run_scan(
             str(FIXTURES / "swift" / "pass_as006_complete"),
             platform="ios",

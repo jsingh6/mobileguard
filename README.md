@@ -25,6 +25,64 @@ with zero awareness of mobile governance constraints:
 20 documented incidents exposed tens of millions of users between Jan 2025–Feb 2026.
 MobileGuard catches these violations before they reach the store.
 
+## Claude Skill
+
+MobileGuard also ships as an agent skill (`skills/mobileguard/`) for Claude Code and other skill-aware coding agents. The CLI below matches patterns. The skill **traces** each AI data flow through your code and checks it against the App Store Review Guidelines, Google Play policy, the OWASP LLM & Agentic Top 10, and OWASP MASVS. It reports only findings it has confirmed in the code, quoting the lines as evidence. React Native / Expo gets the deepest coverage.
+
+It is built to run at every stage of your release cycle, not as a one-time audit. A committed ledger (`MOBILEGUARD.md`) carries what each run learned into the next.
+
+### 1. Install
+
+```bash
+npx skills add jsingh6/mobileguard
+```
+
+Or copy `skills/mobileguard/` into `~/.claude/skills/` (all projects) or `<your-app>/.claude/skills/` (one project). The helper script needs only `python3` (3.8+), with no dependencies.
+
+### 2. First run: create the ledger
+
+In your app repo, ask your agent:
+
+> Run a MobileGuard review of this app.
+
+The agent maps every AI call site, applies all checks, and writes `MOBILEGUARD.md` at the repo root. **Commit that file.** It records the app's AI surface, what each store was told, decisions you made (accepted risks and their reasons), and the findings history. Review changes to it in PRs like any other code.
+
+### 3. Use it at each stage of the release cycle
+
+| When | Mode | Ask your agent |
+|---|---|---|
+| Building an AI feature | **build** | "Add voice input to the chat — follow MobileGuard." |
+| Every PR touching AI code | **pr** | "MobileGuard review of this PR." |
+| Before every store submission | **release** | "MobileGuard release check for v2.4.0." |
+| A store rejected the app | **rejection** | "MobileGuard: we got this rejection —" followed by the Resolution Center or Play Console text |
+| Quarterly, or after a rejection | **lookback** | "MobileGuard lookback." |
+
+What each mode gives you:
+
+- **build:** the agent follows [the guardrails](skills/mobileguard/references/guardrails.md) while writing code, so the risky patterns are never written: keys in the bundle, model output in WebViews, tools without confirmation, and so on.
+- **pr:** reviews only what the diff changes, but checks consent, store declarations, and account deletion across the whole app. The first AI call in a PR makes all of those newly required.
+- **release:** shows what changed since the last submission and regenerates the privacy manifest, App Store privacy label, and Play Data safety answers. It lists the exact console changes a human must make, drafts App Review notes, and gives a go/no-go.
+- **rejection:** maps each cited guideline to the code, fixes every instance (not just the one the reviewer found), and checks the other store too. It drafts the reply, then adds a permanent project check so the same rejection can't recur.
+- **lookback:** finds problems caught late, findings that recur, flags you always dismiss, and stale decisions, and turns them into new project guardrails and checks.
+
+### 4. Optional: make the guardrails project-wide
+
+Paste [`skills/mobileguard/references/guardrails.md`](skills/mobileguard/references/guardrails.md) into your app's `AGENTS.md` or `CLAUDE.md`, so every coding agent applies them, including agents without the skill installed. In build mode, the agent offers to do this for you.
+
+### 5. Optional: fail CI when the AI surface drifts
+
+The skill's helper script can flag a PR that adds AI surface (a new provider, data source, permission, tool, or sink) that the ledger hasn't recorded. A new data type usually means your privacy label or Data safety form needs updating:
+
+```yaml
+- name: MobileGuard AI surface drift
+  run: |
+    curl -sSLo /tmp/ai_surface.py \
+      https://raw.githubusercontent.com/jsingh6/mobileguard/main/skills/mobileguard/scripts/ai_surface.py
+    python3 /tmp/ai_surface.py . --diff-ledger MOBILEGUARD.md --fail-on-drift
+```
+
+Lines starting `+` are new surface and lines starting `-` are removed surface. To clear the gate, run a MobileGuard release check (or update the ledger's Snapshot block) once the change is reviewed. Pin the URL to a release tag instead of `main` for reproducible builds.
+
 ## Install
 
 ```bash
@@ -63,7 +121,7 @@ was designed with mobile deployment constraints in mind.
 | Tool | What it catches | What MobileGuard adds |
 |---|---|---|
 | GitHub Secret Scanning | Hardcoded secrets in source | AS-001: AI API calls without governance disclosure |
-| Xcode Analyzer | Code quality, API misuse | AS-006: AI calls without privacy manifest entry |
+| Xcode Analyzer | Code quality, API misuse | AS-006: AI data flows missing from (or misdeclared in) the privacy manifest |
 | SwiftLint | Style, patterns | AS-007: AI-generated code execution in WKWebView |
 | Apple Review | Post-submission gate | PGSG: Pre-submission prediction before binary is immutable |
 | (Nothing) | — | AABE: Maps ambient agent entry points for governance documentation |
@@ -75,9 +133,12 @@ AI API calls without 5.1.2(i) disclosure, hardcoded keys, prompt
 injection, PII in requests. What happens in your code.
 
 **Layer 2 — Declaration governance (v1.1 — AS-006)**
-AI calls in source not declared in PrivacyInfo.xcprivacy. What your
-code says versus what your manifest declares. Apple rejects this
-before human review.
+What your code sends to AI providers versus what PrivacyInfo.xcprivacy
+declares. AS-006 flags a missing manifest, missing
+NSPrivacyCollectedDataTypes, and AI hosts wrongly listed in
+NSPrivacyTrackingDomains. iOS blocks requests to tracking domains
+until the user grants App Tracking Transparency, so that last mistake
+silently breaks the AI feature for most users.
 
 **Layer 3 — Architectural governance (v1.1 — AS-007)**
 AI-generated content executed in WKWebView. What your binary does
@@ -111,7 +172,7 @@ governance rules don't silently change between runs.
 ```yaml
 - name: MobileGuard governance scan
   run: |
-    pip install mobileguard==1.1.0
+    pip install mobileguard==3.1.0
     mobileguard scan . --platform ios --fail-on critical --format sarif --output mobileguard.sarif
 
 - name: Upload to GitHub Security tab
@@ -167,7 +228,7 @@ based on its history of clean evaluation cycles.
 
 | Rule Set | Rules | Enforces |
 |---|---|---|
-| `app-store` | AS-001 to AS-005 | Apple Guideline 5.1.2(i), 4.1(c) |
+| `app-store` | AS-001 to AS-007, AABE-001/002 | Apple Guidelines 5.1.2(i), 2.5.2, privacy manifests |
 | `google-play` | GP-001 to GP-005 | Google Play AI Policy, Data Safety |
 | `eu-ai-act` | EU-001 to EU-004 | EU AI Act Article 50, 12, 14 |
 | `owasp` | OW-001 to OW-005 | OWASP Mobile AI Top 10 |
@@ -181,6 +242,8 @@ based on its history of clean evaluation cycles.
 | AS-003 | ERROR | App Intent exposes sensitive scope without authorization |
 | AS-004 | WARNING | Generic AI-generated privacy description in Info.plist |
 | AS-005 | WARNING | Missing NSPrivacyCollectedDataTypes for AI data collection |
+| AS-006 | CRITICAL | AI usage not reflected correctly in PrivacyInfo.xcprivacy (missing manifest, no collected data types, or AI host listed as a tracking domain) |
+| AS-007 | CRITICAL | WKWebView / JavaScript engine executing dynamic content (Guideline 2.5.2) |
 
 ### Google Play Rules (Android)
 

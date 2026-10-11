@@ -95,6 +95,10 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "UP", "B", "C4", "PTH"]
 ignore = ["B008"]
 
+[tool.ruff.lint.per-file-ignores]
+# Pattern catalogue: long regex lines read better unwrapped.
+"skills/**/*.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

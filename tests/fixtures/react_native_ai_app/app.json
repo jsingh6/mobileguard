@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "ChatGPT Buddy",
+    "ios": {
+      "privacyManifests": {
+        "NSPrivacyTracking": true,
+        "NSPrivacyTrackingDomains": ["api.openai.com"],
+        "NSPrivacyCollectedDataTypes": []
+      }
+    },
+    "android": { "permissions": ["RECORD_AUDIO", "READ_CONTACTS"] },
+    "updates": { "url": "https://u.expo.dev/abc" }
+  }
+}
