@@ -23,6 +23,8 @@ Build-time "env" mechanisms all end up in the shipped app:
 
 **Not findings:**
 
+- Public-by-design keys in `EXPO_PUBLIC_*`: Supabase anon key, Firebase config, Stream, RevenueCat public key, Sentry DSN. Check Supabase RLS or Firebase Security Rules instead.
+
 - Expo Router **API routes** (`app/**/+api.ts`) run on the server when deployed (EAS Hosting or another server output). A key read there via a non-`EXPO_PUBLIC_` env var is the correct pattern. Confirm the client calls the route rather than the provider.
 - Keys under `functions/`, `server/`, or `supabase/functions/`.
 

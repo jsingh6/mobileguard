@@ -42,7 +42,7 @@ SKIP_DIRS = {
 }
 TEST_PATH = re.compile(
     r"(^|/)(__tests__|__mocks__|tests?|androidTest|e2e|fixtures?|mocks?|"
-    r"[A-Za-z]+Tests|[A-Za-z]+UITests)(/|$)|\.(test|spec)\.[jt]sx?$|Tests?\.(swift|kt)$"
+    r"[A-Za-z]+Tests|[A-Za-z]+UITests)(/|$)|\.(test|spec)\.[jt]sx?$|Tests?\.(swift|kt)$|(^|/)jest[.\w-]*\.[jt]s$"
 )
 SOURCE_EXTS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".swift", ".m", ".mm",
                ".kt", ".kts", ".java", ".dart"}
@@ -50,7 +50,7 @@ CONFIG_NAMES = {
     "package.json", "app.json", "app.config.js", "app.config.ts", "eas.json",
     "pubspec.yaml", "Info.plist", "PrivacyInfo.xcprivacy", "AndroidManifest.xml",
     "build.gradle", "build.gradle.kts", "gradle.properties", "local.properties",
-    "network_security_config.xml", "Podfile", "strings.xml",
+    "network_security_config.xml", "Podfile", "strings.xml", "libs.versions.toml",
 }
 SECRET_FILE = re.compile(r"(^|/)\.env(\.[\w.-]+)?$|\.xcconfig$|(^|/)secrets?\.(json|plist|ya?ml)$")
 MAX_BYTES = 1_500_000
@@ -91,6 +91,17 @@ NATIVE_AI = [
     (r"com\.anthropic\.", "Anthropic (Kotlin/Java)", "cloud"),
     (r"com\.google\.mediapipe\.tasks\.genai|com\.google\.mlkit\.genai", "MediaPipe/ML Kit GenAI (on-device)", "on-device"),
 ]
+GRADLE_AI = [
+    (r"com\.aallam\.openai", "OpenAI (Kotlin)", "cloud"),
+    (r"com\.openai:openai-java", "OpenAI (Java)", "cloud"),
+    (r"com\.anthropic:anthropic-java", "Anthropic (Java)", "cloud"),
+    (r"com\.google\.ai\.client\.generativeai", "Google Gemini (Android)", "cloud"),
+    (r"com\.google\.firebase:firebase-(ai|vertexai)|firebase-(ai|vertexai)", "Firebase AI Logic", "cloud"),
+    (r"dev\.langchain4j", "LangChain4j", "framework"),
+    (r"com\.google\.mediapipe:tasks-genai|com\.google\.mlkit:genai", "MediaPipe/ML Kit GenAI", "on-device"),
+    (r"com\.google\.ai\.edge\.litert|litertlm", "LiteRT (on-device)", "on-device"),
+    (r"org\.pytorch:executorch", "ExecuTorch (Android)", "on-device"),
+]
 AI_HOSTS = re.compile(
     r"(api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com|"
     r"aiplatform\.googleapis\.com|[\w-]+\.openai\.azure\.com|[\w-]+\.cognitiveservices\.azure\.com|"
@@ -126,6 +137,10 @@ LEADS: list[tuple[str, re.Pattern, str, set[str] | None]] = [
      "BuildConfig fields are compiled into the APK/AAB", KT | {".gradle"}),
     ("MG-S01", re.compile(r"dotenv\.(env|get)\s*\[?\(?['\"]\w*(KEY|TOKEN|SECRET)|String\.fromEnvironment\(\s*['\"]\w*(KEY|TOKEN)", re.I),
      "flutter_dotenv assets / --dart-define values ship inside the app", DART),
+    ("MG-S01", re.compile(r"\bBuildConfig\.\w*(KEY|TOKEN|SECRET)\w*"),
+     "BuildConfig secret read at runtime — value is compiled into the APK/AAB", KT),
+    ("MG-S01", re.compile(r"secrets-gradle-plugin|libs\.plugins\.\w*secrets|com\.google\.android\.libraries\.mapsplatform\.secrets"),
+     "Secrets Gradle plugin: git-ignored secrets.properties values become BuildConfig fields in the APK", KT | {".gradle", ".toml"}),
     ("MG-S01", re.compile(r"Bundle\.main\.(object\(forInfoDictionaryKey|infoDictionary)[^\n]*(KEY|TOKEN|SECRET)", re.I),
      "Info.plist values ship inside the IPA", SWIFT),
     ("MG-S01", re.compile(r"dangerouslyAllowBrowser\s*:\s*true"),
@@ -145,7 +160,8 @@ LEADS: list[tuple[str, re.Pattern, str, set[str] | None]] = [
      "WebView dynamic content / intent URI parsing", KT),
     ("MG-S04", re.compile(r"\b(runJavaScript|evaluateJavascript|loadHtmlString|launchUrl)\s*\("),
      "webview_flutter / url_launcher sink", DART),
-    ("MG-S04", re.compile(r"\b(rawQuery|execSQL|executeSql|sqlite3_exec)\s*\(", re.I), "raw SQL sink", None),
+    ("MG-S04", re.compile(r"\b(rawQuery|execSQL|executeSql|sqlite3_exec)\s*\([^)\n]*(\$\{|\$[A-Za-z_]|\\\(|[\"'`]\s*\+|\+\s*[\"'`])", re.I),
+     "raw SQL built from interpolated values", None),
     # Native bridges exposed to web content (prompt injection → native call)
     ("MG-S05", re.compile(r"\bonMessage\s*=\s*\{"), "react-native-webview postMessage bridge", JS),
     ("MG-S05", re.compile(r"addJavascriptInterface\s*\(|@JavascriptInterface"), "Android JS bridge", KT),
@@ -162,6 +178,9 @@ LEADS: list[tuple[str, re.Pattern, str, set[str] | None]] = [
                           r"CNContactStore|HKHealthStore|ContactsContract|HealthConnect|getClipboard|Clipboard\.getString",
                           re.I), "sensitive data source — check whether it reaches a prompt", None),
     # Storage at rest
+    ("MG-S07", re.compile(r"(AppStorage\(|UserDefaults\.standard\.(set|string)\b[^\n]*|AsyncStorage\.setItem\(|"
+                          r"useStoredString\(|\.putString\(|setString\()\s*[^\n]*[\"'`][\w.-]*(api[-_]?key|token|secret|bearer)[\w.-]*[\"'`]", re.I),
+     "credential stored in unencrypted storage (use Keychain / Keystore / SecureStore)", None),
     ("MG-S07", re.compile(r"AsyncStorage\.setItem|new MMKV\(|createMMKV\(|UserDefaults\.standard\.set|"
                           r"getSharedPreferences|SharedPreferences\.getInstance|Hive\.openBox"),
      "unencrypted key-value storage — check for chat history or user API keys", None),
@@ -333,8 +352,9 @@ class Surface:
     def android_manifest(self, path: Path, text: str) -> None:
         self.stack.add("android")
         rel = self.rel(path)
+        debug_only = bool(re.search(r"(^|/)src/debug\w*/", rel))
         for attr in ("usesCleartextTraffic=\"true\"", "allowBackup=\"true\""):
-            if attr in text:
+            if attr in text and not debug_only:
                 check = "MG-S10" if "Cleartext" in attr else "MG-S07"
                 self.lead(check, rel, text[: text.index(attr)].count("\n") + 1, f"android:{attr}", attr)
         for m in re.finditer(r"android\.permission\.(RECORD_AUDIO|READ_CONTACTS|READ_SMS|SEND_SMS|"
@@ -349,14 +369,21 @@ class Surface:
     def source(self, path: Path, text: str) -> None:
         rel = self.rel(path)
         ext = path.suffix.lower()
-        server_side = bool(re.search(r"\+api\.[jt]sx?$|(^|/)(server|backend|functions|supabase/functions|api)/", rel))
+        server_side = bool(re.search(r"\+api\.[jt]sx?$|(^|/)(server|backend|functions|supabase/functions)/", rel))
         if ext in SWIFT:
             self.stack.add("ios")
         elif ext in KT:
             self.stack.add("android")
+        build_file = path.name.endswith((".gradle", ".gradle.kts", ".toml"))
         for i, line in enumerate(text.splitlines(), 1):
             if len(line) > 600:
                 continue
+            if build_file:
+                for pat, provider, kind in GRADLE_AI:
+                    if re.search(pat, line):
+                        self.ai_deps.append({"package": line.strip()[:80], "provider": provider, "kind": kind,
+                                             "file": rel, "dev_only": "false"})
+                        break
             host = AI_HOSTS.search(line)
             if host:
                 self.ai_files.add(rel)
@@ -372,6 +399,8 @@ class Surface:
             if k:
                 self.lead("MG-S01", rel, i, "provider key literal" + (" (server-side file)" if server_side else ""),
                           line.replace(k.group(0), mask(k.group(0))))
+            if re.match(r"\s*(//|/\*|\*|#(?!\w))", line):
+                continue  # commented-out code: secrets above still count, leads do not
             for check, pat, note, exts in LEADS:
                 if exts is not None and ext not in exts:
                     continue
@@ -414,7 +443,7 @@ class Surface:
                 self._privacy_manifest_text(rel, text)
             elif name == "AndroidManifest.xml":
                 self.android_manifest(path, text)
-            elif name in ("build.gradle", "build.gradle.kts") or ext == ".gradle":
+            elif name in ("build.gradle", "build.gradle.kts", "libs.versions.toml") or ext == ".gradle":
                 self.stack.add("android")
                 self.source(path, text)
             elif SECRET_FILE.search(rel) or name in ("gradle.properties", "local.properties", "eas.json"):

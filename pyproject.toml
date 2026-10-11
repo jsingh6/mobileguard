@@ -98,6 +98,7 @@ ignore = ["B008"]
 [tool.ruff.lint.per-file-ignores]
 # Pattern catalogue: long regex lines read better unwrapped.
 "skills/**/*.py" = ["E501"]
+"tests/test_skill_ai_surface.py" = ["E501"]  # verbatim snippets from validated apps
 
 [tool.mypy]
 python_version = "3.11"

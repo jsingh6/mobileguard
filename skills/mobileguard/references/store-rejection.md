@@ -46,7 +46,14 @@ Guideline text quoted here was verified against the live App Review Guidelines i
   1. Model output executed as code: `eval`, `new Function`, `JSContext.evaluateScript`, or `evaluateJavaScript`/`injectJavaScript` with generated strings.
   2. Generated mini-apps or HTML previews rendered in a WebView. This is the pattern Apple blocked for vibe-coding apps (Replit, Vibecode, Anything) in March 2026.
   3. A **native bridge** (`onMessage`, `addJavascriptInterface`, `WKScriptMessageHandler`, Flutter JS channels) reachable from generated content. That is 4.7.2 exposure and also MG-S05.
-- **Calibrate:** rendering generated `<script>` inside sandboxed chat bubbles has passed review for some apps; enforcement tracks whether generated code acquires *app features* or *native capability*. Severity is Blocker for cases 1–2 with native access, High for cases 1–2 without it, and Medium for a sandboxed render with JS disabled.
+- **Calibrate:** enforcement tracks whether generated code acquires *app features* or *native capability*. Rendering generated `<script>` in sandboxed chat bubbles has passed review for some apps. Severity by tier:
+
+  | Pattern | Severity |
+  |---|---|
+  | Generated code with native access (a bridge, or in-process `eval`) | Blocker |
+  | Generated apps or previews with JS enabled by default, or an app-like runner | High |
+  | User-tapped preview with JS enabled, behind a CSP, navigation pinned to `about:blank`, and no bridge | Medium, reviewer-dependent. Describe it in the App Review notes. |
+  | Rendering with JS disabled | Advisory |
 - **Fix:** open generated apps in Safari/`SFSafariViewController`/Custom Tabs on a hosted URL; render model output as text or sanitized markdown; set `javaScriptEnabled={false}` where scripts are not essential; remove bridges from any WebView showing model output.
 
 ## MG-R06 · AI capability shipped or hidden around review [Both; React Native/Expo critical]

@@ -152,3 +152,73 @@ class TestLedgerDrift:
     def test_template_placeholder_is_ignored(self) -> None:
         text = "## Snapshot (last release)\n```\n<output of ai_surface.py --snapshot>\n```\n"
         assert ai_surface.ledger_snapshot(text) == []
+
+
+def _run(tmp_path: Path, files: dict[str, str]) -> dict[str, Any]:
+    for rel, body in files.items():
+        target = tmp_path / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body)
+    result: dict[str, Any] = ai_surface.Surface(tmp_path, 500).run()
+    return result
+
+
+class TestValidationRegressions:
+    """Cases found by running the skill on real open-source apps (Oct 2026)."""
+
+    def test_secrets_gradle_plugin_key_is_caught(self, tmp_path: Path) -> None:
+        # chatgpt-android: git-ignored secrets.properties -> BuildConfig -> APK
+        result = _run(tmp_path, {
+            "gradle/libs.versions.toml": 'google-secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin" }\n',
+            "net/GPTInterceptor.kt": 'addHeader("Authorization", "Bearer ${BuildConfig.GPT_API_KEY}")\n',
+        })
+        notes = " ".join(lead["note"] for lead in result["leads"]["MG-S01"])
+        assert "BuildConfig secret" in notes and "Secrets Gradle plugin" in notes
+
+    def test_gradle_ai_dependencies_detected(self, tmp_path: Path) -> None:
+        result = _run(tmp_path, {
+            "app/build.gradle.kts": 'implementation("com.aallam.openai:openai-client:4.0.1")\n',
+            "gradle/libs.versions.toml": 'genai = { module = "com.google.ai.client.generativeai:generativeai" }\n',
+        })
+        providers = {d["provider"] for d in result["ai_dependencies"]}
+        assert {"OpenAI (Kotlin)", "Google Gemini (Android)"} <= providers
+
+    @pytest.mark.parametrize(
+        ("rel", "line"),
+        [
+            ("Keys.swift", 'claudeApiKey = UserDefaults.standard.string(forKey: "claude_api_key") ?? ""'),
+            ("Settings.swift", '@AppStorage("ollamaBearerToken") private var token: String = ""'),
+            ("openai.tsx", 'const [apiKey, setApiKey] = useStoredString("open-ai-api-key");'),
+            ("Prefs.kt", 'prefs.edit().putString("openai_token", value).apply()'),
+        ],
+    )
+    def test_credential_in_plain_storage(self, tmp_path: Path, rel: str, line: str) -> None:
+        result = _run(tmp_path, {rel: line + "\n"})
+        assert any("credential" in lead["note"] for lead in result["leads"].get("MG-S07", []))
+
+    def test_src_api_is_client_code(self, tmp_path: Path) -> None:
+        # pocketpal: src/api/ is RN client code, not a server
+        result = _run(tmp_path, {"src/api/openai.ts": "const body = { tools: [] };\n"})
+        assert all("[server-side file]" not in lead["note"] for lead in result["leads"]["MG-S05"])
+
+    def test_debug_manifest_cleartext_ignored(self, tmp_path: Path) -> None:
+        result = _run(tmp_path, {
+            "android/app/src/debug/AndroidManifest.xml": '<application android:usesCleartextTraffic="true"/>\n',
+        })
+        assert "MG-S10" not in result["leads"]
+
+    def test_commented_code_is_not_a_lead(self, tmp_path: Path) -> None:
+        result = _run(tmp_path, {"Engine.swift": '//     print("detokenized prompt: \\(prompt)")\n'})
+        assert "MG-S08" not in result["leads"]
+
+    def test_static_sql_is_not_a_lead(self, tmp_path: Path) -> None:
+        result = _run(tmp_path, {
+            "Migrations.kt": 'db.execSQL("ALTER TABLE chats ADD COLUMN title TEXT")\n',
+            "Search.kt": 'db.rawQuery("SELECT * FROM chats WHERE title = \'$query\'", null)\n',
+        })
+        files = {lead["file"] for lead in result["leads"].get("MG-S04", [])}
+        assert files == {"Search.kt"}
+
+    def test_jest_setup_is_test_code(self, tmp_path: Path) -> None:
+        result = _run(tmp_path, {"jest.env.js": 'process.env.EXPO_PUBLIC_SUPABASE_KEY ||= "x";\n'})
+        assert all(lead["test_code"] for lead in result["leads"]["MG-S01"])

@@ -22,11 +22,14 @@ A finding states **impact as attacker capability**: who can do what, from where,
   - A BYOK key the user enters at runtime (judge its storage under MG-S07).
   - Firebase AI Logic with **App Check enforced**, which is Google's sanctioned client-side pattern. Verify App Check enforcement is on.
   - Short-lived scoped tokens minted by your server (for example OpenAI Realtime ephemeral keys).
+  - **Keys that are public by design:** Supabase anon/publishable keys, Firebase web/Android/iOS `apiKey`, Stream Chat API keys, RevenueCat public SDK keys, Sentry DSNs. These are protected by server-side rules, not secrecy. The finding to look for instead is missing Supabase RLS or permissive Firebase Security Rules.
+- **Hidden variant, "env-safe" Android:** the Secrets Gradle plugin or `local.properties` → `BuildConfig.X_API_KEY`. The source file is git-ignored, but the value is compiled into every APK built from it (seen in the wild in a popular open-source ChatGPT client).
 - **Fix:** route calls through your backend with per-user auth; or Firebase AI Logic plus App Check (App Attest / Play Integrity); then rotate the leaked key.
 
 ## MG-S02 · Unbounded consumption / denial of wallet — LLM10, ASI08
 
 - **Trace:** the proxy or client sets output token caps; enforces per-user and per-device quotas server-side; attests that requests come from the genuine app (App Attest, Play Integrity, App Check); bounds retries and streaming reconnect loops; and caps agent-loop iterations and tool-call depth.
+- **Open relay (the proxy-shaped version of MG-S01):** the provider key is safe on your server, but the server accepts unauthenticated requests. Its URL ships in the bundle (`EXPO_PUBLIC_*_API_URL`), so anyone can use it. Look for auth that is optional or off by default, a client that never sends credentials, per-IP rate limits only, `cors('*')`, and no `max_tokens` on forwarded calls. A shared bearer token baked into the app does not fix this; it is just MG-S01 again.
 - **Impact phrasing:** "one script using the extracted key, or your open proxy, can spend $X/day."
 - **Fix:** server-side quota keyed to the authenticated user, `max_tokens` on every call, iteration caps on agent loops, and billing alerts.
 
@@ -34,7 +37,13 @@ A finding states **impact as attacker capability**: who can do what, from where,
 
 - **Mobile-specific indirect sources:** clipboard reads, share-extension input, notification content, OCR or vision on user images, fetched web pages, email or SMS or calendar content read by an agent, documents and PDFs, and RAG over user-imported files.
 - **Trace:** which untrusted sources enter the same context as tools, secrets, or other users' data? Concatenating user text into the system prompt is the weak form (Medium). The serious form is untrusted content in context **plus** a privileged sink: tools (MG-S05), WebView or links (MG-S04), or persistent memory (MG-S12).
-- **Fix:** keep untrusted content in user-role messages with delimiters; the impact control is gating sinks (S04/S05), not prompt wording.
+- **The lethal trifecta** (Blocker when all three hold, otherwise Medium):
+  1. untrusted content enters context, through web read or search tools, fetched pages, received messages, or documents;
+  2. private data is in context, such as the conversation, contacts, files, or connected accounts;
+  3. a tool can act or send data out without a human gate: URL fetch (the query string is an exfiltration channel), MCP tools, send/post tools.
+
+  Auto-executed tool loops with user-connected MCP servers usually satisfy all three. Hardened fetch tools (SSRF protection, DNS pinning) still exfiltrate through the URL itself.
+- **Fix:** keep untrusted content in user-role messages with delimiters; the impact control is gating sinks (S04/S05), not prompt wording. Break the trifecta: confirm MCP and tool calls not marked read-only, and confirm fetches to hosts that came from model output after untrusted content entered context.
 
 ## MG-S04 · Improper output handling: model output reaches a dangerous sink — LLM05, ASI05, MASVS-PLATFORM-2
 
@@ -74,7 +83,7 @@ Treat model output as untrusted input. Check each output column for these sinks:
 
 - **Trace:**
   - `console.log` of prompts or responses in release builds (Hermes keeps them unless stripped).
-  - Native `print`/`NSLog`/`Log.d`.
+  - Native logging that persists: `NSLog` and `os_log`/`Logger` with `.public` interpolation (both land in the device's unified log), Android `Log.*` (logcat), and Dart `print`. Swift `print` writes to stdout and is only visible with a debugger or console attached, so it is Advisory unless the build pipes stdout elsewhere.
   - Crash-reporter breadcrumbs, context, or attachments carrying message text.
   - Analytics events with prompt text.
   - Network inspectors left in release (Reactotron, Flipper, Chucker).
